@@ -14,7 +14,13 @@ from app.core.constants import MarketType, OrderSide, OrderStatus, OrderType
 from app.core.exceptions import ExchangeError
 from app.core.logging import get_logger
 from app.core.time_utils import utcnow
-from app.exchange.base import AccountBalance, ExchangeGateway, ExchangeOrder, ExchangePosition, Ticker
+from app.exchange.base import (
+    AccountBalance,
+    ExchangeGateway,
+    ExchangeOrder,
+    ExchangePosition,
+    Ticker,
+)
 from app.exchange.filters import SymbolFilters, default_filters_for
 
 logger = get_logger(__name__)

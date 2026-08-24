@@ -133,7 +133,10 @@ def test_metric_helpers() -> None:
 
     metrics = compute_metrics(
         trades=[{"net_pnl": 10.0, "return_pct": 1.0, "duration_seconds": 60}],
-        equity_curve=[{"time": "2024-01-01", "equity": 100.0}, {"time": "2024-01-02", "equity": 110.0}],
+        equity_curve=[
+            {"time": "2024-01-01", "equity": 100.0},
+            {"time": "2024-01-02", "equity": 110.0},
+        ],
         starting_capital=100.0,
         timeframe="15m",
         duration_days=1.0,

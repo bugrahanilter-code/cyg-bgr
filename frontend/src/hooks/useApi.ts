@@ -46,14 +46,17 @@ export function useApiMutation<TData, TVariables>(
   options?: UseMutationOptions<TData, Error, TVariables>,
 ) {
   const queryClient = useQueryClient();
+  type SuccessHandler = NonNullable<UseMutationOptions<TData, Error, TVariables>["onSuccess"]>;
   return useMutation<TData, Error, TVariables>({
     mutationFn,
     ...options,
-    onSuccess: (data, variables, context) => {
+    // The argument list of onSuccess changed between TanStack Query releases,
+    // so it is forwarded verbatim instead of being destructured.
+    onSuccess: (...args: Parameters<SuccessHandler>) => {
       invalidateKeys.forEach((key) => {
         void queryClient.invalidateQueries({ queryKey: key });
       });
-      options?.onSuccess?.(data, variables, context);
+      return options?.onSuccess?.(...args);
     },
   });
 }

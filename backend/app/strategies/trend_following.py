@@ -40,7 +40,9 @@ class TrendFollowingParams(BaseModel):
     slow_ema: int = Field(default=55, ge=3, le=400, description="Slow EMA period")
     trend_ema: int = Field(default=200, ge=10, le=1000, description="Trend filter EMA period")
     use_higher_timeframe: bool = Field(default=True, description="Confirm with a higher timeframe")
-    higher_timeframe: str = Field(default="4h", description="Higher timeframe used for confirmation")
+    higher_timeframe: str = Field(
+        default="4h", description="Higher timeframe used for confirmation"
+    )
     higher_timeframe_ema: int = Field(default=50, ge=2, le=400)
     atr_period: int = Field(default=14, ge=2, le=100)
     atr_stop_multiplier: float = Field(default=2.0, gt=0.1, le=10.0)
@@ -130,13 +132,22 @@ class TrendFollowingStrategy(BaseStrategy):
         # Exit management for an open position comes first.
         if position_side and params.exit_on_trend_flip:
             if position_side.upper() == "LONG" and fast < slow:
-                return self._exit_signal(symbol, timeframe, row, indicators, regime, "Trend flipped down")
+                return self._exit_signal(
+                    symbol, timeframe, row, indicators, regime, "Trend flipped down"
+                )
             if position_side.upper() == "SHORT" and fast > slow:
-                return self._exit_signal(symbol, timeframe, row, indicators, regime, "Trend flipped up")
+                return self._exit_signal(
+                    symbol, timeframe, row, indicators, regime, "Trend flipped up"
+                )
 
         if regime is not None and params.avoid_extreme_volatility and regime.is_extreme:
             return self._hold(
-                symbol, timeframe, row, "Extreme volatility regime: standing aside", indicators, regime
+                symbol,
+                timeframe,
+                row,
+                "Extreme volatility regime: standing aside",
+                indicators,
+                regime,
             )
 
         if adx_value < params.min_adx:
@@ -152,7 +163,12 @@ class TrendFollowingStrategy(BaseStrategy):
         distance_ok = abs(close - fast) <= params.max_entry_distance_atr * atr_value
         if not distance_ok:
             return self._hold(
-                symbol, timeframe, row, "Price too far from the fast EMA to chase", indicators, regime
+                symbol,
+                timeframe,
+                row,
+                "Price too far from the fast EMA to chase",
+                indicators,
+                regime,
             )
 
         momentum_value = momentum if momentum is not None else 0.0
@@ -161,8 +177,16 @@ class TrendFollowingStrategy(BaseStrategy):
 
         if bullish_stack and momentum_value >= params.momentum_threshold and htf_bullish:
             return self._entry_signal(
-                symbol, timeframe, row, indicators, regime, SignalType.LONG,
-                close, atr_value, adx_value, momentum_value,
+                symbol,
+                timeframe,
+                row,
+                indicators,
+                regime,
+                SignalType.LONG,
+                close,
+                atr_value,
+                adx_value,
+                momentum_value,
             )
         if (
             params.allow_short
@@ -171,11 +195,21 @@ class TrendFollowingStrategy(BaseStrategy):
             and htf_bearish
         ):
             return self._entry_signal(
-                symbol, timeframe, row, indicators, regime, SignalType.SHORT,
-                close, atr_value, adx_value, momentum_value,
+                symbol,
+                timeframe,
+                row,
+                indicators,
+                regime,
+                SignalType.SHORT,
+                close,
+                atr_value,
+                adx_value,
+                momentum_value,
             )
 
-        return self._hold(symbol, timeframe, row, "No trend entry condition met", indicators, regime)
+        return self._hold(
+            symbol, timeframe, row, "No trend entry condition met", indicators, regime
+        )
 
     # -- signal builders ----------------------------------------------------
     def _entry_signal(

@@ -10,7 +10,49 @@ Bu rehber, hiç yazılım bilgisi olmayan bir kullanıcı için yazılmıştır.
 
 ---
 
-## 1. Neye ihtiyacınız var?
+## 0. Docker çalışmıyorsa (muhtemelen sizin durumunuz)
+
+Docker Desktop **"Virtualization support not detected"** hatası veriyorsa,
+bilgisayarınızın BIOS/UEFI ayarlarında işlemci sanallaştırması kapalıdır.
+
+**Docker'sız da çalışır.** İki seçeneğiniz var:
+
+### Seçenek A: Docker'sız çalıştır (en hızlı, önerilen)
+
+Gereken: **Python 3.11+** ve **Node.js 20+** (docker gerekmez).
+
+1. `scripts` klasöründeki `start-backend.bat` dosyasına çift tıklayın.
+   Açılan siyah pencereyi **kapatmayın**.
+2. `scripts` klasöründeki `start-frontend.bat` dosyasına çift tıklayın.
+   Bu pencereyi de **kapatmayın**.
+3. Tarayıcıdan <http://localhost:3000> adresini açın.
+
+Durdurmak için iki pencerede de `Ctrl + C` yapın veya pencereleri kapatın.
+
+Bu modda veritabanı olarak PostgreSQL yerine **SQLite** kullanılır
+(`backend/data/dev.db` dosyası). Tek kullanıcılı yerel çalışma için yeterlidir.
+
+### Seçenek B: Sanallaştırmayı açıp Docker kullan
+
+1. Bilgisayarı yeniden başlatın, açılışta BIOS/UEFI tuşuna basın
+   (genelde `F2`, `F10`, `Del` veya `Esc`).
+2. Şu ayarı bulup **Enabled** yapın:
+   * Intel işlemcide: `Intel Virtualization Technology` veya `Intel VT-x`
+   * AMD işlemcide: `SVM Mode`
+3. Kaydedip çıkın (`F10`).
+4. Windows açıldıktan sonra yönetici PowerShell'de:
+
+   ```powershell
+   wsl --install
+   ```
+
+5. Bilgisayarı tekrar başlatın, Docker Desktop'ı açın, "Engine running"
+   yazmasını bekleyin.
+6. Sonra bu rehberdeki normal Docker adımlarına devam edin.
+
+---
+
+## 1. Docker ile kurulum (sanallaştırma açıksa)
 
 Sadece **Docker Desktop**. Python veya Node.js kurmanıza gerek yok.
 
@@ -19,7 +61,7 @@ Sadece **Docker Desktop**. Python veya Node.js kurmanıza gerek yok.
 2. Bilgisayarı yeniden başlatın (Windows genelde ister).
 3. Docker Desktop'ı açın ve sol altta "Engine running" yazana kadar bekleyin.
 
-## 2. Projeyi başlatma
+## 2. Docker ile projeyi başlatma
 
 1. Bu klasörde bir terminal açın.
    * Windows: klasöre girin, adres çubuğuna `powershell` yazıp Enter'a basın.
@@ -49,7 +91,7 @@ Sadece **Docker Desktop**. Python veya Node.js kurmanıza gerek yok.
 Panel açıldıysa her şey hazır demektir. Sistem otomatik olarak **paper trading**
 (sanal para) modunda çalışmaya başlar.
 
-## 3. Durdurma ve yeniden başlatma
+## 3. Durdurma ve yeniden başlatma (Docker)
 
 | Ne yapmak istiyorsunuz | Komut |
 | --- | --- |

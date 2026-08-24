@@ -11,7 +11,7 @@ import {
   strategyService,
   tradingService,
 } from "@/services/tradingService";
-import { useAppState } from "@/state/AppState";
+import { useAppState } from "@/state/appStateContext";
 import { formatDateTime } from "@/utils/format";
 
 const TIMEFRAMES = ["1m", "5m", "15m", "30m", "1h", "4h", "1d"];

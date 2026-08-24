@@ -120,7 +120,7 @@ def default_trading_config() -> TradingConfig:
         higher_timeframe=settings.higher_timeframe,
         leverage=min(2, settings.max_leverage),
         enabled_symbols=settings.enabled_symbol_list,
-        enabled_strategies={key: True for key in available_keys()},
+        enabled_strategies=dict.fromkeys(available_keys(), True),
     )
 
 

@@ -184,13 +184,9 @@ async def test_duplicate_entry_is_suppressed(execution_setup, db) -> None:
     """The same signal must never open two positions."""
     engine, gateway, portfolio = execution_setup
     candle = 1_700_000_111_000
-    await engine.execute_entry(
-        db, signal=_signal(candle=candle), sizing=_sizing(), leverage=2.0
-    )
+    await engine.execute_entry(db, signal=_signal(candle=candle), sizing=_sizing(), leverage=2.0)
     calls_after_first = gateway.create_calls
-    await engine.execute_entry(
-        db, signal=_signal(candle=candle), sizing=_sizing(), leverage=2.0
-    )
+    await engine.execute_entry(db, signal=_signal(candle=candle), sizing=_sizing(), leverage=2.0)
     assert gateway.create_calls == calls_after_first
 
 

@@ -33,9 +33,7 @@ def clamp01(value: float) -> float:
     return max(0.0, min(1.0, float(value)))
 
 
-def higher_timeframe_ema(
-    frame: pd.DataFrame, higher_timeframe: str, period: int
-) -> pd.Series:
+def higher_timeframe_ema(frame: pd.DataFrame, higher_timeframe: str, period: int) -> pd.Series:
     """EMA of a higher timeframe, mapped back onto the lower timeframe bars.
 
     Only *completed* higher-timeframe candles are used (the series is shifted

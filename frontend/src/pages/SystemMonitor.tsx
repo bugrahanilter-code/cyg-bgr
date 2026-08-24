@@ -3,14 +3,9 @@ import { Panel } from "@/components/Panel";
 import { Banner, ErrorState, Loading } from "@/components/StateViews";
 import { REFRESH_FAST, REFRESH_NORMAL, useApiMutation, usePolledQuery } from "@/hooks/useApi";
 import { systemService } from "@/services/tradingService";
-import { useAppState } from "@/state/AppState";
+import { useAppState } from "@/state/appStateContext";
 import { formatAgo, formatDateTime } from "@/utils/format";
-
-function severityTone(severity: string) {
-  if (severity === "CRITICAL" || severity === "ERROR") return "danger" as const;
-  if (severity === "WARNING") return "warning" as const;
-  return "neutral" as const;
-}
+import { severityTone } from "@/utils/tone";
 
 export function SystemMonitorPage() {
   const { pushToast } = useAppState();

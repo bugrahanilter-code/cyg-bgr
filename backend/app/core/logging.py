@@ -7,6 +7,7 @@ secrets out of log files.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import sys
@@ -16,15 +17,42 @@ from app.core.config import get_settings
 from app.core.security import redact
 
 _RESERVED = {
-    "args", "asctime", "created", "exc_info", "exc_text", "filename", "funcName",
-    "levelname", "levelno", "lineno", "module", "msecs", "message", "msg", "name",
-    "pathname", "process", "processName", "relativeCreated", "stack_info",
-    "thread", "threadName", "taskName",
+    "args",
+    "asctime",
+    "created",
+    "exc_info",
+    "exc_text",
+    "filename",
+    "funcName",
+    "levelname",
+    "levelno",
+    "lineno",
+    "module",
+    "msecs",
+    "message",
+    "msg",
+    "name",
+    "pathname",
+    "process",
+    "processName",
+    "relativeCreated",
+    "stack_info",
+    "thread",
+    "threadName",
+    "taskName",
 }
 
 _SENSITIVE_KEYS = {
-    "api_secret", "apisecret", "secret", "password", "token", "api_key", "apikey",
-    "authorization", "signature", "private_key",
+    "api_secret",
+    "apisecret",
+    "secret",
+    "password",
+    "token",
+    "api_key",
+    "apikey",
+    "authorization",
+    "signature",
+    "private_key",
 }
 
 
@@ -32,10 +60,9 @@ class SecretRedactionFilter(logging.Filter):
     """Removes known secrets and masks sensitive-looking fields."""
 
     def filter(self, record: logging.LogRecord) -> bool:
-        try:
+        # Logging must never break the application, so failures are swallowed.
+        with contextlib.suppress(Exception):
             record.msg = redact(str(record.msg))
-        except Exception:  # pragma: no cover - logging must never break
-            pass
         for key in list(record.__dict__.keys()):
             value = record.__dict__[key]
             if key.lower() in _SENSITIVE_KEYS:

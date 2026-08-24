@@ -63,9 +63,7 @@ def test_strategy_can_be_disabled_and_enabled(client: TestClient) -> None:
 
 
 def test_strategy_parameters_are_validated(client: TestClient) -> None:
-    response = client.put(
-        "/api/strategies/trend_following", json={"params": {"fast_ema": -5}}
-    )
+    response = client.put("/api/strategies/trend_following", json={"params": {"fast_ema": -5}})
     assert response.status_code >= 400
 
 

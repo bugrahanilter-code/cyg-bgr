@@ -130,8 +130,10 @@ def compute_metrics(
     win_rate = (len(wins) / len(trades) * 100.0) if trades else 0.0
     average_win = (gross_profit / len(wins)) if wins else 0.0
     average_loss = (gross_loss / len(losses)) if losses else 0.0
-    profit_factor = (gross_profit / gross_loss) if gross_loss > 0 else (
-        float("inf") if gross_profit > 0 else 0.0
+    profit_factor = (
+        (gross_profit / gross_loss)
+        if gross_loss > 0
+        else (float("inf") if gross_profit > 0 else 0.0)
     )
     expectancy = (
         (win_rate / 100.0) * average_win - (1.0 - win_rate / 100.0) * average_loss
@@ -244,7 +246,9 @@ def trade_distribution(trades: list[dict[str, Any]], buckets: int = 12) -> dict[
                 "label": label,
                 "count": int(values["count"]),
                 "net_pnl": values["net_pnl"],
-                "win_rate_pct": values["wins"] / values["count"] * 100.0 if values["count"] else 0.0,
+                "win_rate_pct": values["wins"] / values["count"] * 100.0
+                if values["count"]
+                else 0.0,
             }
             for label, values in sorted(grouped.items())
         ]

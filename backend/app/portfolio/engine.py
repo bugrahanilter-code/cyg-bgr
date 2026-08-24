@@ -16,7 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
-from app.core.constants import ExitReason, PositionStatus, PositionSide, TradingMode
+from app.core.constants import ExitReason, PositionSide, PositionStatus, TradingMode
 from app.core.logging import get_logger
 from app.core.time_utils import day_start, today_utc, utcnow
 from app.models.account import BalanceSnapshot, DailyStatistic
@@ -175,10 +175,13 @@ class PortfolioEngine:
             fee_pct=0.0,  # explicit fee amounts are passed in below
             funding_paid=funding_total,
             slippage=slippage_total,
-            capital_base=float(position.margin) or float(position.entry_price) * float(position.quantity),
+            capital_base=float(position.margin)
+            or float(position.entry_price) * float(position.quantity),
         )
         net = breakdown.gross - fee_total - funding_total
-        capital_base = float(position.margin) or (float(position.entry_price) * float(position.quantity))
+        capital_base = float(position.margin) or (
+            float(position.entry_price) * float(position.quantity)
+        )
         return_pct = (net / capital_base * 100.0) if capital_base > 0 else 0.0
 
         position.status = PositionStatus.CLOSED.value
@@ -366,9 +369,11 @@ class PortfolioEngine:
         stats.peak_equity = max(float(stats.peak_equity or starting), float(stats.ending_equity))
         if starting > 0:
             stats.daily_return_pct = float(stats.realized_pnl) / starting * 100.0
-            drawdown = (float(stats.peak_equity) - float(stats.ending_equity)) / float(
-                stats.peak_equity
-            ) * 100.0
+            drawdown = (
+                (float(stats.peak_equity) - float(stats.ending_equity))
+                / float(stats.peak_equity)
+                * 100.0
+            )
             stats.max_drawdown_pct = max(float(stats.max_drawdown_pct or 0.0), drawdown)
         db.commit()
         return stats

@@ -10,7 +10,7 @@ from app.core.logging import get_logger
 from app.database.base import Base
 from app.database.session import SessionLocal, engine
 from app.exchange.filters import default_filters_for
-from app.models import Symbol  # noqa: F401  (registers every model)
+from app.models import Symbol
 from app.models.trading import StrategyRecord
 from app.services import settings_service
 from app.services.bot_state_service import get_state

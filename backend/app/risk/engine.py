@@ -153,9 +153,7 @@ class RiskEngine:
                 "Live trading has not been explicitly confirmed",
             )
         if config.block_on_stale_data and context.market_data_stale:
-            self._reject(
-                decision, RiskRejectionCode.STALE_MARKET_DATA, "Market data is stale"
-            )
+            self._reject(decision, RiskRejectionCode.STALE_MARKET_DATA, "Market data is stale")
         if not context.reconciliation_ok:
             self._reject(
                 decision,

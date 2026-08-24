@@ -257,10 +257,7 @@ class MarketDataService:
             newest = store.latest_open_time(session, symbol, timeframe)
             step = timeframe_to_ms(timeframe)
             now_ms = to_ms(utcnow())
-            if newest is None:
-                start = now_ms - step * lookback
-            else:
-                start = newest + step
+            start = now_ms - step * lookback if newest is None else newest + step
             if start > now_ms:
                 return 0
             return await self.download_range(symbol, timeframe, start, now_ms, db=session)

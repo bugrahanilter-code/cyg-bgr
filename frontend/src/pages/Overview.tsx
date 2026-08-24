@@ -1,4 +1,4 @@
-import { Badge, sideTone } from "@/components/Badge";
+import { Badge } from "@/components/Badge";
 import { DataTable } from "@/components/DataTable";
 import type { Column } from "@/components/DataTable";
 import { Panel } from "@/components/Panel";
@@ -18,6 +18,7 @@ import {
   formatSignedCurrency,
   pnlClass,
 } from "@/utils/format";
+import { sideTone } from "@/utils/tone";
 
 const positionColumns: Array<Column<PositionView>> = [
   { key: "symbol", header: "Symbol", render: (row) => <strong>{row.symbol}</strong> },

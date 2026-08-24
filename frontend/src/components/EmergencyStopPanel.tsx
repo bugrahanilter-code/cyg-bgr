@@ -4,7 +4,7 @@ import { Banner } from "@/components/StateViews";
 import { Modal } from "@/components/Modal";
 import { useApiMutation } from "@/hooks/useApi";
 import { systemService } from "@/services/tradingService";
-import { useAppState } from "@/state/AppState";
+import { useAppState } from "@/state/appStateContext";
 import type { EmergencyStopLevel } from "@/types/api";
 
 const LEVELS: Array<{

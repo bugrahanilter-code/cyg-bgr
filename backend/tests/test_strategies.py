@@ -23,9 +23,7 @@ def test_strategy_returns_a_valid_signal(key: str, trending_frame: pd.DataFrame)
     strategy = create_strategy(key)
     regime_engine = MarketRegimeEngine()
     regime = regime_engine.classify(trending_frame)
-    signal = strategy.generate(
-        trending_frame, symbol="BTC/USDT", timeframe="15m", regime=regime
-    )
+    signal = strategy.generate(trending_frame, symbol="BTC/USDT", timeframe="15m", regime=regime)
     assert signal.strategy_key == key
     assert signal.signal in (SignalType.LONG, SignalType.SHORT, SignalType.HOLD, SignalType.CLOSE)
     assert 0.0 <= signal.confidence <= 1.0
@@ -103,8 +101,6 @@ def test_extreme_volatility_blocks_entries(volatile_frame: pd.DataFrame) -> None
     regime = engine.classify(volatile_frame)
     assert regime.volatility in (VolatilityRegime.HIGH, VolatilityRegime.EXTREME)
     strategy = create_strategy("trend_following")
-    signal = strategy.generate(
-        volatile_frame, symbol="BTC/USDT", timeframe="15m", regime=regime
-    )
+    signal = strategy.generate(volatile_frame, symbol="BTC/USDT", timeframe="15m", regime=regime)
     if regime.volatility == VolatilityRegime.EXTREME:
         assert signal.signal == SignalType.HOLD

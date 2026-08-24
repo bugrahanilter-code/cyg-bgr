@@ -6,7 +6,13 @@ import uuid
 
 from app.core.constants import MarketType, OrderSide, OrderStatus, OrderType, PositionSide
 from app.core.time_utils import utcnow
-from app.exchange.base import AccountBalance, ExchangeGateway, ExchangeOrder, ExchangePosition, Ticker
+from app.exchange.base import (
+    AccountBalance,
+    ExchangeGateway,
+    ExchangeOrder,
+    ExchangePosition,
+    Ticker,
+)
 from app.exchange.filters import SymbolFilters, default_filters_for
 
 
@@ -83,9 +89,7 @@ class MockGateway(ExchangeGateway):
         return list(self.positions)
 
     async def fetch_open_orders(self, symbol=None) -> list[ExchangeOrder]:
-        return [
-            order for order in self.orders.values() if order.status in (OrderStatus.NEW,)
-        ]
+        return [order for order in self.orders.values() if order.status in (OrderStatus.NEW,)]
 
     async def fetch_order(self, symbol: str, client_order_id: str) -> ExchangeOrder | None:
         return self.orders.get(client_order_id)
@@ -110,11 +114,7 @@ class MockGateway(ExchangeGateway):
             raise RuntimeError("Duplicate clientOrderId")
 
         fill_price = price if price else self.price_of(symbol)
-        status = (
-            OrderStatus.FILLED
-            if order_type == OrderType.MARKET
-            else OrderStatus.NEW
-        )
+        status = OrderStatus.FILLED if order_type == OrderType.MARKET else OrderStatus.NEW
         order = ExchangeOrder(
             symbol=symbol.upper(),
             side=side,

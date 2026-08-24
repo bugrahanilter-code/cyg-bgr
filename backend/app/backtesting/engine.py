@@ -191,16 +191,15 @@ class BacktestEngine:
             )
 
             # --- 1. signal driven exit executes at the next open -----------
-            if position is not None and signal.signal in (SignalType.CLOSE, SignalType.HOLD):
-                if signal.signal == SignalType.CLOSE:
-                    fill = costs.fill_price(bar_open, position.side, is_entry=False)
-                    trade, balance = self._close(
-                        position, fill, bar_ms, ExitReason.SIGNAL_EXIT, costs, balance, request
-                    )
-                    trades.append(trade)
-                    daily_realized += trade["net_pnl"]
-                    consecutive_losses = 0 if trade["net_pnl"] > 0 else consecutive_losses + 1
-                    position = None
+            if position is not None and signal.signal == SignalType.CLOSE:
+                fill = costs.fill_price(bar_open, position.side, is_entry=False)
+                trade, balance = self._close(
+                    position, fill, bar_ms, ExitReason.SIGNAL_EXIT, costs, balance, request
+                )
+                trades.append(trade)
+                daily_realized += trade["net_pnl"]
+                consecutive_losses = 0 if trade["net_pnl"] > 0 else consecutive_losses + 1
+                position = None
 
             # --- 2. reversal: close the opposite position first ------------
             if position is not None and signal.is_entry and signal.signal != position.side:
@@ -370,7 +369,7 @@ class BacktestEngine:
         output.metrics["timeframe"] = request.timeframe
         output.monthly_returns = monthly_returns(equity_curve)
         output.trade_distribution = trade_distribution(trades)
-        output.candles_used = int(len(frame))
+        output.candles_used = len(frame)
         if not trades:
             output.warnings.append(
                 "No trades were generated. The filters may be too strict for this period."

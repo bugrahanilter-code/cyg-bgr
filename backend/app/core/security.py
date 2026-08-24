@@ -11,6 +11,7 @@ Rules enforced by this module:
 from __future__ import annotations
 
 import base64
+import contextlib
 import hashlib
 import secrets
 import threading
@@ -67,10 +68,9 @@ def _resolve_key_material() -> str:
 
     generated = secrets.token_urlsafe(48)
     key_file.write_text(generated, encoding="utf-8")
-    try:  # POSIX only, silently ignored on Windows
+    # chmod is POSIX only and is silently ignored on Windows.
+    with contextlib.suppress(OSError):
         key_file.chmod(0o600)
-    except OSError:  # pragma: no cover - platform dependent
-        pass
     return generated
 
 

@@ -26,7 +26,9 @@ def direction_multiplier(side: PositionSide | SignalType | str) -> float:
     return 0.0
 
 
-def gross_pnl(side: PositionSide | SignalType | str, entry: float, exit_price: float, quantity: float) -> float:
+def gross_pnl(
+    side: PositionSide | SignalType | str, entry: float, exit_price: float, quantity: float
+) -> float:
     """Price difference multiplied by size and direction."""
     return (exit_price - entry) * quantity * direction_multiplier(side)
 

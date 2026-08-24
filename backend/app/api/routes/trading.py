@@ -41,7 +41,11 @@ def live_checklist(db: DbSession, context: Context) -> dict[str, Any]:
             "done": not view.get("withdrawal_permission_warning", False),
         },
         {"key": "risk", "label": LIVE_CHECKLIST[3], "done": True},
-        {"key": "acknowledge", "label": LIVE_CHECKLIST[4], "done": bool(state.live_trading_confirmed)},
+        {
+            "key": "acknowledge",
+            "label": LIVE_CHECKLIST[4],
+            "done": bool(state.live_trading_confirmed),
+        },
     ]
     return {
         "env_flag_enabled": settings.live_trading_enabled,
@@ -117,6 +121,4 @@ def reset_paper(payload: PaperResetRequest, db: DbSession) -> MessageResponse:
         severity=EventSeverity.WARNING,
         mode=TradingMode.PAPER.value,
     )
-    return MessageResponse(
-        message="Paper account reset.", details={"removed_trades": removed}
-    )
+    return MessageResponse(message="Paper account reset.", details={"removed_trades": removed})

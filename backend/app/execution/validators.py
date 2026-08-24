@@ -67,7 +67,10 @@ def validate_order(
 
     if order_type == OrderType.LIMIT and result.price is None:
         result.fail("A limit order requires a price")
-    if order_type in (OrderType.STOP_MARKET, OrderType.TAKE_PROFIT_MARKET) and result.stop_price is None:
+    if (
+        order_type in (OrderType.STOP_MARKET, OrderType.TAKE_PROFIT_MARKET)
+        and result.stop_price is None
+    ):
         result.fail("A conditional order requires a stop price")
 
     notional_reference = result.price or reference_price

@@ -105,9 +105,7 @@ def test_consecutive_losses_and_cooldown(engine: RiskEngine) -> None:
 
 
 def test_cooldown_expires(engine: RiskEngine) -> None:
-    context = build_context(
-        consecutive_losses=1, last_loss_at=utcnow() - timedelta(minutes=45)
-    )
+    context = build_context(consecutive_losses=1, last_loss_at=utcnow() - timedelta(minutes=45))
     decision = engine.evaluate(build_signal(), context)
     assert RiskRejectionCode.COOLDOWN_ACTIVE.value not in decision.codes
 

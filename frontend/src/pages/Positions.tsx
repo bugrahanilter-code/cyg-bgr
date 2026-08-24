@@ -1,9 +1,9 @@
-import { Badge, sideTone } from "@/components/Badge";
+import { Badge } from "@/components/Badge";
 import { Panel } from "@/components/Panel";
 import { ErrorState, Loading } from "@/components/StateViews";
 import { REFRESH_FAST, useApiMutation, usePolledQuery } from "@/hooks/useApi";
 import { positionService } from "@/services/tradingService";
-import { useAppState } from "@/state/AppState";
+import { useAppState } from "@/state/appStateContext";
 import {
   formatCurrency,
   formatDateTime,
@@ -12,6 +12,7 @@ import {
   formatSignedCurrency,
   pnlClass,
 } from "@/utils/format";
+import { sideTone } from "@/utils/tone";
 
 export function PositionsPage() {
   const { pushToast } = useAppState();

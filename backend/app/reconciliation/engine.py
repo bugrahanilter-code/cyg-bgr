@@ -73,7 +73,7 @@ class ReconciliationReport:
     def to_dict(self) -> dict[str, Any]:
         return {
             "status": self.status.value,
-            "checked_at": self.checked_at,
+            "checked_at": self.checked_at.isoformat(),
             "ok": self.ok,
             "differences": [difference.to_dict() for difference in self.differences],
             "local_positions": self.local_positions,
@@ -98,7 +98,9 @@ class ReconciliationEngine:
         self.portfolio = portfolio
         self.mode = mode
 
-    async def reconcile(self, db: Session, symbols: list[str] | None = None) -> ReconciliationReport:
+    async def reconcile(
+        self, db: Session, symbols: list[str] | None = None
+    ) -> ReconciliationReport:
         """Run a full comparison and persist the verdict."""
         report = ReconciliationReport(checked_at=utcnow())
         try:
@@ -151,7 +153,9 @@ class ReconciliationEngine:
             )
 
         report.status = (
-            ReconciliationStatus.IN_SYNC if not report.differences else ReconciliationStatus.MISMATCH
+            ReconciliationStatus.IN_SYNC
+            if not report.differences
+            else ReconciliationStatus.MISMATCH
         )
         set_reconciliation(db, report.status, report.to_dict())
 
@@ -226,7 +230,9 @@ class ReconciliationEngine:
                         )
                     )
                 local_side = str(local["side"]).upper()
-                remote_side = remote.side.value if isinstance(remote.side, PositionSide) else str(remote.side)
+                remote_side = (
+                    remote.side.value if isinstance(remote.side, PositionSide) else str(remote.side)
+                )
                 if local_side != str(remote_side).upper():
                     differences.append(
                         Difference(
@@ -240,7 +246,9 @@ class ReconciliationEngine:
         return differences
 
     @staticmethod
-    def _compare_balance(local_balance: float | None, exchange_balance: float | None) -> list[Difference]:
+    def _compare_balance(
+        local_balance: float | None, exchange_balance: float | None
+    ) -> list[Difference]:
         """Balances may drift slightly, large gaps are a problem."""
         if local_balance is None or exchange_balance is None:
             return []

@@ -18,13 +18,13 @@ os.environ.setdefault("LOG_LEVEL", "WARNING")
 os.environ.setdefault("PAPER_STARTING_BALANCE", "10000")
 os.environ.setdefault("LIVE_TRADING_ENABLED", "false")
 
-import numpy as np  # noqa: E402
-import pandas as pd  # noqa: E402
-import pytest  # noqa: E402
+import numpy as np
+import pandas as pd
+import pytest
 
-from app.database.base import Base  # noqa: E402
-from app.database.init_db import init_database  # noqa: E402
-from app.database.session import SessionLocal, engine  # noqa: E402
+from app.database.base import Base
+from app.database.init_db import init_database
+from app.database.session import SessionLocal, engine
 
 
 @pytest.fixture(scope="session", autouse=True)
@@ -88,9 +88,17 @@ def ranging_frame() -> pd.DataFrame:
 
 @pytest.fixture
 def volatile_frame() -> pd.DataFrame:
-    """A violently volatile market used to test the safety filters."""
+    """A calm market that ends in a violent volatility spike.
+
+    The regime engine measures volatility RELATIVE to a market's own recent
+    history, so a uniformly wild series is not "extreme" - a sudden expansion
+    after a quiet period is. This fixture reproduces that realistic case.
+    """
     rng = np.random.default_rng(99)
-    steps = 900
-    returns = rng.normal(0.0, 0.05, steps)
+    calm_steps = 870
+    spike_steps = 30
+    calm = rng.normal(0.0, 0.0015, calm_steps)
+    spike = rng.normal(0.0, 0.05, spike_steps)
+    returns = np.concatenate([calm, spike])
     prices = 1_000.0 * np.exp(np.cumsum(returns))
     return _frame_from_prices(prices, 1_700_000_000_000, 900_000)

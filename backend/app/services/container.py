@@ -10,6 +10,7 @@ implementations are chosen.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 from typing import Any
 
 from sqlalchemy import text
@@ -77,10 +78,9 @@ class AppContext:
             await self.market_data.stop()
         for gateway in (self.trading_gateway, self.data_gateway):
             if gateway is not None:
-                try:
+                # Shutdown must never raise.
+                with contextlib.suppress(Exception):
                     await gateway.close()
-                except Exception:  # pragma: no cover - shutdown must not fail
-                    pass
         self.started = False
 
     async def rebuild(self, db: Session) -> None:
@@ -355,12 +355,26 @@ class AppContext:
         except Exception:  # pragma: no cover - database down
             database_ok = False
 
+        # Receiving Binance data is itself proof that the exchange is
+        # reachable, so an untested connection is not reported as down.
+        exchange_status = self.exchange_status
+        if exchange_status != ConnectionStatus.CONNECTED:
+            reachable = ConnectionStatus.CONNECTED.value in (
+                market_health.get("websocket_status"),
+                market_health.get("rest_status"),
+            )
+            if reachable:
+                exchange_status = ConnectionStatus.CONNECTED
+
         return {
             "market_data": market_health,
             "engine": engine_status,
-            "database": {"status": HealthStatus.OK.value if database_ok else HealthStatus.DOWN.value},
+            "database": {
+                "status": HealthStatus.OK.value if database_ok else HealthStatus.DOWN.value,
+                "dialect": db.bind.dialect.name if db.bind is not None else "unknown",
+            },
             "exchange": {
-                "status": self.exchange_status.value,
+                "status": exchange_status.value,
                 "error": self.exchange_error,
                 "gateway": self.trading_gateway.name if self.trading_gateway else "none",
                 "supports_real_orders": bool(

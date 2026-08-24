@@ -121,7 +121,9 @@ class BinanceWebSocketClient:
             try:
                 raw = await asyncio.wait_for(socket.recv(), timeout=self.idle_timeout)
             except TimeoutError as exc:
-                raise ConnectionError("No websocket message received within the idle timeout") from exc
+                raise ConnectionError(
+                    "No websocket message received within the idle timeout"
+                ) from exc
             self.last_message_at = utcnow()
             try:
                 payload = json.loads(raw)

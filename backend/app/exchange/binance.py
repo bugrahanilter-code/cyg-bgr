@@ -19,7 +19,13 @@ from app.core.exceptions import ExchangeAuthError, ExchangeConnectionError, Exch
 from app.core.logging import get_logger
 from app.core.security import register_sensitive_value
 from app.core.time_utils import from_ms
-from app.exchange.base import AccountBalance, ExchangeGateway, ExchangeOrder, ExchangePosition, Ticker
+from app.exchange.base import (
+    AccountBalance,
+    ExchangeGateway,
+    ExchangeOrder,
+    ExchangePosition,
+    Ticker,
+)
 from app.exchange.filters import SymbolFilters, default_filters_for
 
 logger = get_logger(__name__)
@@ -100,7 +106,9 @@ class BinanceGateway(ExchangeGateway):
             config["apiKey"] = self._api_key
             config["secret"] = self._api_secret
 
-        exchange_class = ccxt.binanceusdm if self.market_type == MarketType.FUTURES else ccxt.binance
+        exchange_class = (
+            ccxt.binanceusdm if self.market_type == MarketType.FUTURES else ccxt.binance
+        )
         client = exchange_class(config)
         if self.testnet:
             client.set_sandbox_mode(True)

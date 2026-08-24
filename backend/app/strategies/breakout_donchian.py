@@ -130,12 +130,18 @@ class DonchianBreakoutStrategy(BaseStrategy):
             exit_lower = safe_float(row["exit_lower"])
             side = position_side.upper()
             if side == "LONG" and exit_lower is not None and close < exit_lower:
-                return self._close(symbol, timeframe, row, indicators, regime, "Closed below the exit channel")
+                return self._close(
+                    symbol, timeframe, row, indicators, regime, "Closed below the exit channel"
+                )
             if side == "SHORT" and exit_upper is not None and close > exit_upper:
-                return self._close(symbol, timeframe, row, indicators, regime, "Closed above the exit channel")
+                return self._close(
+                    symbol, timeframe, row, indicators, regime, "Closed above the exit channel"
+                )
 
         if regime is not None and params.avoid_extreme_volatility and regime.is_extreme:
-            return self._hold(symbol, timeframe, row, "Extreme volatility: breakout skipped", indicators, regime)
+            return self._hold(
+                symbol, timeframe, row, "Extreme volatility: breakout skipped", indicators, regime
+            )
 
         if atr_pct is not None and (atr_pct < params.min_atr_pct or atr_pct > params.max_atr_pct):
             return self._hold(
@@ -165,13 +171,29 @@ class DonchianBreakoutStrategy(BaseStrategy):
 
         if long_breakout and volume_ok and trend_ok_long:
             return self._breakout_signal(
-                symbol, timeframe, row, indicators, regime, SignalType.LONG,
-                close, upper, atr_value, volume_confirmation,
+                symbol,
+                timeframe,
+                row,
+                indicators,
+                regime,
+                SignalType.LONG,
+                close,
+                upper,
+                atr_value,
+                volume_confirmation,
             )
         if params.allow_short and short_breakout and volume_ok and trend_ok_short:
             return self._breakout_signal(
-                symbol, timeframe, row, indicators, regime, SignalType.SHORT,
-                close, lower, atr_value, volume_confirmation,
+                symbol,
+                timeframe,
+                row,
+                indicators,
+                regime,
+                SignalType.SHORT,
+                close,
+                lower,
+                atr_value,
+                volume_confirmation,
             )
 
         if long_breakout and not volume_ok:
@@ -213,12 +235,15 @@ class DonchianBreakoutStrategy(BaseStrategy):
             0.45 * penetration_component + 0.30 * volume_component + 0.25 * regime_component
         )
 
-        explanation = (
-            f"{direction.value} breakout of the {params.channel_period}-bar channel at "
-            f"{level:.2f} ({penetration:.2f} ATR beyond it), volume ratio "
-            f"{volume_confirmation:.2f}." if volume_confirmation is not None
-            else f"{direction.value} breakout of the {params.channel_period}-bar channel at {level:.2f}."
-        )
+        channel_text = f"the {params.channel_period}-bar channel at {level:.2f}"
+        if volume_confirmation is not None:
+            explanation = (
+                f"{direction.value} breakout of {channel_text} "
+                f"({penetration:.2f} ATR beyond it), volume ratio "
+                f"{volume_confirmation:.2f}."
+            )
+        else:
+            explanation = f"{direction.value} breakout of {channel_text}."
         indicators["breakout_level"] = level
         indicators["penetration_atr"] = penetration
         return StrategySignal(

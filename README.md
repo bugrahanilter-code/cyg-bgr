@@ -117,9 +117,24 @@ You need **Docker Desktop** and nothing else. No Python, no Node.js.
 
 The first build takes several minutes. Later starts take seconds.
 
+### If Docker cannot start
+
+Docker Desktop needs CPU virtualization (Intel VT-x / AMD SVM) to be enabled in
+the BIOS/UEFI. If it reports *"Virtualization support not detected"*, either
+enable that setting in the BIOS, or skip Docker entirely and use the native
+path below - the platform runs identically, with SQLite instead of PostgreSQL.
+
+On Windows the quickest way is to double-click, in this order:
+
+1. `scripts\start-backend.bat`  (leave the window open)
+2. `scripts\start-frontend.bat` (leave the window open)
+
+Then open <http://localhost:3000>.
+
 ### Manual path (for developers)
 
-Requires Python 3.11+, Node.js 20+ and a PostgreSQL server.
+Requires Python 3.11+ and Node.js 20+. PostgreSQL is optional: without it, set
+`DATABASE_URL=sqlite+pysqlite:///./data/dev.db` in `.env` and everything works.
 
 ```bash
 # Backend

@@ -1,15 +1,16 @@
 import { useEffect, useState } from "react";
 
-import { Badge, signalTone } from "@/components/Badge";
+import { Badge } from "@/components/Badge";
 import { Panel } from "@/components/Panel";
 import { ParamsForm } from "@/components/ParamsForm";
 import { ErrorState, Loading } from "@/components/StateViews";
 import { Toggle } from "@/components/Toggle";
 import { REFRESH_NORMAL, useApiMutation, usePolledQuery } from "@/hooks/useApi";
 import { strategyService } from "@/services/tradingService";
-import { useAppState } from "@/state/AppState";
+import { useAppState } from "@/state/appStateContext";
 import type { StrategySummary } from "@/types/api";
 import { formatCurrency, formatPercent, formatPrice, formatSignedCurrency, pnlClass } from "@/utils/format";
+import { signalTone } from "@/utils/tone";
 
 function StrategyCard({ strategy }: { strategy: StrategySummary }) {
   const { pushToast } = useAppState();

@@ -40,9 +40,7 @@ def earliest_open_time(db: Session, symbol: str, timeframe: str) -> int | None:
 def count_candles(db: Session, symbol: str, timeframe: str) -> int:
     """Number of cached candles for a market/timeframe."""
     result = db.execute(
-        select(func.count(Candle.id)).where(
-            Candle.symbol == symbol, Candle.timeframe == timeframe
-        )
+        select(func.count(Candle.id)).where(Candle.symbol == symbol, Candle.timeframe == timeframe)
     ).scalar()
     return int(result or 0)
 

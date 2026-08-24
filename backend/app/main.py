@@ -85,7 +85,8 @@ app.include_router(api_router, prefix=settings.api_prefix)
 async def platform_error_handler(request: Request, exc: TradingPlatformError) -> JSONResponse:
     """Map domain errors onto clean HTTP responses."""
     logger.warning(
-        "Domain error", extra={"path": str(request.url.path), "code": exc.code, "error": exc.message}
+        "Domain error",
+        extra={"path": str(request.url.path), "code": exc.code, "error": exc.message},
     )
     return JSONResponse(
         status_code=exc.status_code,

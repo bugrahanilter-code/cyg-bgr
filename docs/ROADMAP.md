@@ -3,6 +3,25 @@
 This document is deliberately honest about what is implemented, what is
 partially implemented, and what is not there yet.
 
+## Verification status
+
+Verified by actually running it on 2026-08-24 (Windows 11, Python 3.14,
+Node 26):
+
+* 105 backend tests pass, `ruff check` and `ruff format --check` are clean
+* frontend type check, lint and production build are clean
+* the backend boots, creates its schema, connects to the Binance public
+  WebSocket and streams live BTC/USDT and ETH/USDT prices
+* the trading engine runs in paper mode, reconciliation reports IN_SYNC and
+  every health component reports OK
+* a real 90-day backtest over 8,956 BTC/USDT 15m candles completes in about
+  11 seconds and reports its costs (fees, funding, slippage) honestly
+* the dashboard renders every page, including the charts
+
+**Not verified:** the Docker Compose path (the test machine has CPU
+virtualization disabled in its BIOS, so Docker Desktop cannot start) and live
+trading against a real Binance account.
+
 ## Implemented in this MVP
 
 | Area | Status |

@@ -74,7 +74,7 @@ def build_health_report(db: Session, raw: dict[str, Any]) -> dict[str, Any]:
         _component(
             "Database",
             HealthStatus(database.get("status", HealthStatus.UNKNOWN.value)),
-            "PostgreSQL connection",
+            str(database.get("dialect", "database")) + " connection",
         )
     )
 

@@ -82,7 +82,9 @@ def regime(context: Context) -> dict[str, Any]:
 
 
 @router.post("/download", summary="Download historical candles")
-async def download(payload: CandleDownloadRequest, db: DbSession, context: Context) -> dict[str, Any]:
+async def download(
+    payload: CandleDownloadRequest, db: DbSession, context: Context
+) -> dict[str, Any]:
     if context.market_data is None:
         raise HTTPException(status_code=503, detail="Market data service is not ready")
     stored = await context.market_data.download_range(

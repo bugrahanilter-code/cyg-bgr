@@ -96,7 +96,7 @@ def bollinger_bands(
     deviation = rolling_std(close, period)
     upper = middle + std_multiplier * deviation
     lower = middle - std_multiplier * deviation
-    width = (upper - lower)
+    width = upper - lower
     safe_middle = middle.replace(0.0, np.nan)
     safe_width = width.replace(0.0, np.nan)
     return pd.DataFrame(

@@ -132,9 +132,7 @@ async def _load_candles(
         raise InsufficientDataError("The end date must be after the start date")
 
     try:
-        await market_data.download_range(
-            request.symbol, request.timeframe, start_ms, end_ms, db=db
-        )
+        await market_data.download_range(request.symbol, request.timeframe, start_ms, end_ms, db=db)
     except Exception as exc:
         logger.warning(
             "Could not download candles, using the local cache",

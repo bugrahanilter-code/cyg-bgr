@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 
-import { Badge, sideTone } from "@/components/Badge";
+import { Badge } from "@/components/Badge";
 import { Panel } from "@/components/Panel";
 import { StatCard } from "@/components/StatCard";
 import { ErrorState, Loading } from "@/components/StateViews";
@@ -17,6 +17,7 @@ import {
   formatSignedCurrency,
   pnlClass,
 } from "@/utils/format";
+import { sideTone } from "@/utils/tone";
 
 const MODES = ["", "paper", "live", "backtest"];
 const SIDES = ["", "LONG", "SHORT"];

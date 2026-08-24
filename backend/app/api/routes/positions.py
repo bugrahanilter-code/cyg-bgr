@@ -18,7 +18,9 @@ router = APIRouter(prefix="/positions", tags=["positions"])
 
 
 @router.get("", summary="Open positions with live prices")
-def list_positions(db: DbSession, context: Context, mode: str | None = None) -> list[dict[str, Any]]:
+def list_positions(
+    db: DbSession, context: Context, mode: str | None = None
+) -> list[dict[str, Any]]:
     state = bot_state_service.get_state(db)
     trading_mode = TradingMode(mode) if mode else TradingMode(state.mode)
 

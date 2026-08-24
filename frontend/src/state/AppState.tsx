@@ -1,28 +1,15 @@
 /**
- * Global UI state.
+ * Global UI state provider.
  *
  * Deliberately tiny: the backend owns all trading state, the frontend only
- * remembers user interface preferences.
+ * remembers user interface preferences and transient notifications.
  */
 
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
-export interface Toast {
-  id: number;
-  message: string;
-  tone: "success" | "error" | "info";
-}
-
-interface AppStateValue {
-  toasts: Toast[];
-  pushToast: (message: string, tone?: Toast["tone"]) => void;
-  dismissToast: (id: number) => void;
-  refreshPaused: boolean;
-  setRefreshPaused: (value: boolean) => void;
-}
-
-const AppStateContext = createContext<AppStateValue | null>(null);
+import { AppStateContext } from "@/state/appStateContext";
+import type { Toast } from "@/state/appStateContext";
 
 let toastId = 0;
 
@@ -50,12 +37,4 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   );
 
   return <AppStateContext.Provider value={value}>{children}</AppStateContext.Provider>;
-}
-
-export function useAppState(): AppStateValue {
-  const context = useContext(AppStateContext);
-  if (!context) {
-    throw new Error("useAppState must be used inside AppStateProvider");
-  }
-  return context;
 }

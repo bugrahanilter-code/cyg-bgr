@@ -5,7 +5,7 @@ import { Banner, ErrorState, Loading } from "@/components/StateViews";
 import { Toggle } from "@/components/Toggle";
 import { useApiMutation, useOnceQuery } from "@/hooks/useApi";
 import { riskService } from "@/services/tradingService";
-import { useAppState } from "@/state/AppState";
+import { useAppState } from "@/state/appStateContext";
 import type { RiskConfig } from "@/types/api";
 
 interface FieldSpec {

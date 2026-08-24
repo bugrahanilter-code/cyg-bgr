@@ -138,15 +138,24 @@ class MeanReversionStrategy(BaseStrategy):
         if position_side and params.exit_at_mean:
             side = position_side.upper()
             if side == "LONG" and z_value >= -params.zscore_exit:
-                return self._close(symbol, timeframe, row, indicators, regime, "Reverted to the mean")
+                return self._close(
+                    symbol, timeframe, row, indicators, regime, "Reverted to the mean"
+                )
             if side == "SHORT" and z_value <= params.zscore_exit:
-                return self._close(symbol, timeframe, row, indicators, regime, "Reverted to the mean")
+                return self._close(
+                    symbol, timeframe, row, indicators, regime, "Reverted to the mean"
+                )
 
         # --- Regime guards: this is what keeps the strategy out of trends ---
         if regime is not None:
             if params.avoid_extreme_volatility and regime.is_extreme:
                 return self._hold(
-                    symbol, timeframe, row, "Extreme volatility: reversion disabled", indicators, regime
+                    symbol,
+                    timeframe,
+                    row,
+                    "Extreme volatility: reversion disabled",
+                    indicators,
+                    regime,
                 )
             if params.disable_in_trending_regime and regime.is_trending:
                 return self._hold(
@@ -175,18 +184,40 @@ class MeanReversionStrategy(BaseStrategy):
         vwap_long_ok = not params.use_vwap_filter or vwap_value is None or close < vwap_value
         vwap_short_ok = not params.use_vwap_filter or vwap_value is None or close > vwap_value
 
-        long_setup = z_value <= -params.zscore_entry and rsi_value <= params.rsi_oversold and close <= lower
-        short_setup = z_value >= params.zscore_entry and rsi_value >= params.rsi_overbought and close >= upper
+        long_setup = (
+            z_value <= -params.zscore_entry and rsi_value <= params.rsi_oversold and close <= lower
+        )
+        short_setup = (
+            z_value >= params.zscore_entry and rsi_value >= params.rsi_overbought and close >= upper
+        )
 
         if long_setup and vwap_long_ok:
             return self._reversion_signal(
-                symbol, timeframe, row, indicators, regime, SignalType.LONG,
-                close, middle, atr_value, z_value, rsi_value,
+                symbol,
+                timeframe,
+                row,
+                indicators,
+                regime,
+                SignalType.LONG,
+                close,
+                middle,
+                atr_value,
+                z_value,
+                rsi_value,
             )
         if params.allow_short and short_setup and vwap_short_ok:
             return self._reversion_signal(
-                symbol, timeframe, row, indicators, regime, SignalType.SHORT,
-                close, middle, atr_value, z_value, rsi_value,
+                symbol,
+                timeframe,
+                row,
+                indicators,
+                regime,
+                SignalType.SHORT,
+                close,
+                middle,
+                atr_value,
+                z_value,
+                rsi_value,
             )
 
         return self._hold(

@@ -44,11 +44,12 @@ def list_strategies(db: DbSession, context: Context) -> list[StrategyOut]:
         signals = engine.latest_signals() if engine else {}
         current_signal = None
         for signal_key, payload in signals.items():
-            if signal_key.startswith(f"{key}:"):
-                if current_signal is None or payload.get("confidence", 0) >= current_signal.get(
-                    "confidence", 0
-                ):
-                    current_signal = payload
+            if not signal_key.startswith(f"{key}:"):
+                continue
+            if current_signal is None or payload.get("confidence", 0) >= current_signal.get(
+                "confidence", 0
+            ):
+                current_signal = payload
         performance = analytics_service.summarise(
             analytics_service.load_trades(db, mode=mode, strategy_key=key)
         )

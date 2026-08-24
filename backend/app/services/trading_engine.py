@@ -481,7 +481,9 @@ class TradingEngine:
     ) -> StrategySignal | None:
         """Run one strategy and persist its decision."""
         try:
-            stored_params = settings_service.get_json_setting(db, f"strategy_params:{strategy_key}", {})
+            stored_params = settings_service.get_json_setting(
+                db, f"strategy_params:{strategy_key}", {}
+            )
             strategy = create_strategy(strategy_key, stored_params)
             signal = strategy.generate(
                 frame,
@@ -514,7 +516,9 @@ class TradingEngine:
             candle_open_time=signal.candle_open_time,
             signal_type=signal.signal.value,
             confidence=signal.confidence,
-            market_regime=signal.regime.regime.value if signal.regime else MarketRegime.UNKNOWN.value,
+            market_regime=signal.regime.regime.value
+            if signal.regime
+            else MarketRegime.UNKNOWN.value,
             trend_regime=signal.regime.trend.value if signal.regime else "UNKNOWN",
             volatility_regime=signal.regime.volatility.value if signal.regime else "UNKNOWN",
             entry_price=signal.entry_price,
@@ -533,7 +537,9 @@ class TradingEngine:
             db.rollback()
             return None
 
-    async def _process_entry(self, db: Session, signal: StrategySignal, context, trading_config, gate) -> None:
+    async def _process_entry(
+        self, db: Session, signal: StrategySignal, context, trading_config, gate
+    ) -> None:
         """Risk-check a signal and, if approved, execute it."""
         context.symbol_enabled = trading_config.is_symbol_enabled(signal.symbol)
         context.strategy_enabled = trading_config.is_strategy_enabled(signal.strategy_key)
@@ -545,11 +551,7 @@ class TradingEngine:
         context.now = utcnow()
 
         decision = self.risk_engine.evaluate(signal, context)
-        row = (
-            db.query(Signal)
-            .filter(Signal.uid == signal.uid)
-            .one_or_none()
-        )
+        row = db.query(Signal).filter(Signal.uid == signal.uid).one_or_none()
         if not decision.approved:
             if row is not None:
                 row.status = SignalStatus.REJECTED_BY_RISK.value
@@ -602,13 +604,13 @@ class TradingEngine:
             try:
                 await self.market_data.sync_recent(symbol, timeframe, lookback=600, db=db)
             except Exception as exc:
-                logger.warning(
-                    "Candle sync failed", extra={"symbol": symbol, "error": str(exc)}
-                )
+                logger.warning("Candle sync failed", extra={"symbol": symbol, "error": str(exc)})
         return self.market_data.get_candles(symbol, timeframe, limit=600, db=db)
 
     # -- risk context -------------------------------------------------------
-    def _build_risk_context(self, db: Session, trading_config, risk_config, account, state) -> RiskContext:
+    def _build_risk_context(
+        self, db: Session, trading_config, risk_config, account, state
+    ) -> RiskContext:
         """Assemble the state the risk rules need."""
         stats = self.portfolio.daily_stats(db)
         positions = self.portfolio.open_positions(db)

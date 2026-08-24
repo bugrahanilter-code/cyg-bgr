@@ -2,7 +2,7 @@ import { useState } from "react";
 
 import { BarSeries } from "@/charts/BarSeries";
 import { LineAreaChart } from "@/charts/LineAreaChart";
-import { Badge, sideTone } from "@/components/Badge";
+import { Badge } from "@/components/Badge";
 import { Panel } from "@/components/Panel";
 import { ParamsForm } from "@/components/ParamsForm";
 import { StatCard } from "@/components/StatCard";
@@ -11,7 +11,7 @@ import { Toggle } from "@/components/Toggle";
 import { REFRESH_SLOW, useApiMutation, useOnceQuery, usePolledQuery } from "@/hooks/useApi";
 import { backtestService, settingsService, strategyService } from "@/services/tradingService";
 import type { BacktestRunPayload } from "@/services/tradingService";
-import { useAppState } from "@/state/AppState";
+import { useAppState } from "@/state/appStateContext";
 import type { BacktestDetail } from "@/types/api";
 import {
   daysAgoIso,
@@ -24,6 +24,7 @@ import {
   titleCase,
   toIsoDate,
 } from "@/utils/format";
+import { sideTone } from "@/utils/tone";
 
 const TIMEFRAMES = ["5m", "15m", "30m", "1h", "4h", "1d"];
 

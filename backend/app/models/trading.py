@@ -45,9 +45,7 @@ class StrategyParameter(TimestampMixin, Base):
 
     __tablename__ = "strategy_parameters"
     __table_args__ = (
-        UniqueConstraint(
-            "strategy_key", "symbol", "timeframe", name="uq_strategy_parameter_scope"
-        ),
+        UniqueConstraint("strategy_key", "symbol", "timeframe", name="uq_strategy_parameter_scope"),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
