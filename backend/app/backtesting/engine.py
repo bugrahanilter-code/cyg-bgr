@@ -100,6 +100,11 @@ class _OpenTrade:
     entry_reason: str
     confidence: float
     regime: str
+    #: The measurable conditions at entry, kept so a later analysis can ask
+    #: which of them actually preceded a profitable trade. Recorded at entry
+    #: rather than derived afterwards, because deriving it afterwards is how
+    #: look-ahead bias gets in.
+    entry_context: dict[str, Any]
     atr: float | None
     trailing_multiplier: float
     funding_paid: float = 0.0
@@ -301,6 +306,22 @@ class BacktestEngine:
                             entry_reason=signal.explanation,
                             confidence=signal.confidence,
                             regime=regime.regime.value,
+                            entry_context={
+                                "trend": regime.trend.value,
+                                "volatility": regime.volatility.value,
+                                "adx": regime.adx,
+                                "atr_pct": regime.atr_pct,
+                                "volatility_rank": regime.volatility_rank,
+                                "volatility_ratio": regime.volatility_ratio,
+                                "hour_utc": from_ms(bar_ms).hour,
+                                "weekday": from_ms(bar_ms).weekday(),
+                                "confidence": signal.confidence,
+                                "stop_distance_pct": (
+                                    abs(entry_fill - stop_loss) / entry_fill * 100.0
+                                    if entry_fill > 0
+                                    else None
+                                ),
+                            },
                             atr=signal.metadata.get("atr"),
                             trailing_multiplier=float(
                                 signal.metadata.get("trailing_atr_multiplier", 0.0) or 0.0
@@ -568,6 +589,7 @@ class BacktestEngine:
             "is_win": net > 0,
             "signal_confidence": position.confidence,
             "market_regime": position.regime,
+            "entry_context": position.entry_context,
             "entry_reason": position.entry_reason,
             "exit_reason": reason.value,
         }

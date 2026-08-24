@@ -9,6 +9,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from app.backtesting.engine import BacktestEngine, BacktestOutput, BacktestRequest
+from app.backtesting.signal_quality import analyse
 from app.backtesting.walk_forward import WalkForwardRequest, run_walk_forward
 from app.core.constants import BacktestStatus, EventSeverity, TradingMode, timeframe_to_ms
 from app.core.exceptions import InsufficientDataError
@@ -70,13 +71,19 @@ async def execute_backtest(
                 run_walk_forward, frame, request, walk_forward, engine
             )
 
+        # Conditional expectancy travels with the result: "which of these trades
+        # were worth taking" is a question people ask right after seeing the
+        # headline number, and recomputing it later would need the trades again.
+        distribution = dict(output.trade_distribution or {})
+        distribution["signal_quality"] = analyse(output.trades).to_dict()
+
         result = BacktestResult(
             backtest_id=record.id,
             metrics=output.metrics,
             equity_curve=output.equity_curve,
             drawdown_curve=output.drawdown_curve,
             monthly_returns=output.monthly_returns,
-            trade_distribution=output.trade_distribution,
+            trade_distribution=distribution,
             walk_forward=walk_forward_result,
         )
         db.add(result)

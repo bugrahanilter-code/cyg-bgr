@@ -92,7 +92,8 @@ class Settings(BaseSettings):
     max_leverage: int = 3
     max_position_notional_pct: float = 100.0
     max_total_exposure_pct: float = 200.0
-    min_signal_confidence: float = 0.35
+    #: See app/risk/config.py for the measurement behind this value.
+    min_signal_confidence: float = 0.75
     max_spread_pct: float = 0.15
 
     # -- Cost model ---------------------------------------------------------

@@ -107,7 +107,13 @@ class RiskConfig(BaseModel):
     one_position_per_symbol: bool = Field(default=True)
 
     # -- market quality -----------------------------------------------------
-    min_signal_confidence: float = Field(default=0.35, ge=0.0, le=1.0)
+    #: Raised from 0.35 after measurement, not taste. Pooling 8,980 trades from
+    #: six strategies across eight markets and splitting by date: taking every
+    #: signal produced -0.020R out of sample, taking only those at or above 0.75
+    #: produced +0.088R on 23% of the volume. The improvement held inside four
+    #: of the six strategies independently, so it is signal quality rather than
+    #: a proxy for which strategy was better. See docs/research/signal-quality.md.
+    min_signal_confidence: float = Field(default=0.75, ge=0.0, le=1.0)
     max_spread_pct: float = Field(default=0.15, gt=0.0, le=10.0)
     block_on_extreme_volatility: bool = Field(default=True)
     block_on_stale_data: bool = Field(default=True)

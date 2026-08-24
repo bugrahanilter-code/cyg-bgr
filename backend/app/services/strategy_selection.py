@@ -183,6 +183,65 @@ def _rank_key(candidate: Candidate) -> tuple:
     )
 
 
+def _overfitting_evidence(rows: list[SweepRun], criteria: SelectionCriteria) -> dict[str, Any]:
+    """Grade the selection itself, not just the winner.
+
+    Builds a market x configuration matrix of expectancy and asks two questions
+    that a holdout answers slowly and only for one candidate:
+
+    * Does the ranking hold when it is re-derived on different markets? (PBO)
+    * Is the winner's edge bigger than the best of this many tries would reach
+      by luck? (deflated Sharpe)
+
+    They can disagree, and that is informative. A low PBO with a failing
+    deflated Sharpe means the strategies really do differ from each other in a
+    repeatable way, while the best one's margin is still too small to call skill.
+    """
+    import numpy as np
+
+    from app.backtesting.overfitting import (
+        deflated_sharpe_ratio,
+        probability_of_backtest_overfitting,
+    )
+
+    cells: dict[str, dict[tuple[str, str], float]] = {}
+    for row in rows:
+        if row.total_trades < criteria.min_trades_per_market:
+            continue
+        cells.setdefault(row.symbol, {})[(row.strategy_key, row.timeframe)] = row.expectancy_r
+
+    if len(cells) < 4:
+        return {"available": False, "reason": "Needs at least four markets to compare across"}
+
+    combos = sorted({key for values in cells.values() for key in values})
+    # Keep only markets and combinations that form a complete rectangle: a
+    # matrix with holes would make the ranks incomparable between splits.
+    markets = [m for m in sorted(cells) if len(cells[m]) >= len(combos) * 0.6]
+    combos = [c for c in combos if all(c in cells[m] for m in markets)]
+    if len(markets) < 4 or len(combos) < 2:
+        return {"available": False, "reason": "Not enough overlap between markets and strategies"}
+
+    matrix = np.array([[cells[m][c] for c in combos] for m in markets])
+    result: dict[str, Any] = {
+        "available": True,
+        "markets": len(markets),
+        "combinations": len(combos),
+    }
+
+    try:
+        partitions = min(8, len(markets) - len(markets) % 2)
+        report = probability_of_backtest_overfitting(matrix, partitions=partitions)
+        result["pbo"] = report.to_dict()
+    except ValueError as exc:
+        result["pbo"] = {"error": str(exc)}
+
+    best = int(np.argmax(matrix.mean(axis=0)))
+    deflated = deflated_sharpe_ratio(matrix[:, best], trials=len(combos))
+    result["deflated_sharpe"] = deflated.to_dict()
+    result["best_by_mean"] = {"strategy_key": combos[best][0], "timeframe": combos[best][1]}
+    return result
+
+
 def select_best(
     db: Session, sweep_id: int, criteria: SelectionCriteria | None = None
 ) -> dict[str, Any]:
@@ -225,9 +284,12 @@ def select_best(
         "that was not used to choose it."
     )
 
+    evidence = _overfitting_evidence(list(rows), criteria)
+
     return {
         "sweep_id": sweep_id,
         "sweep_name": sweep.name,
+        "overfitting": evidence,
         "window": {"start": sweep.start_date, "end": sweep.end_date},
         "verdict": verdict,
         "winner": winner.to_dict() if winner else None,
