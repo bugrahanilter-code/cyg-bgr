@@ -1,0 +1,95 @@
+# ---------------------------------------------------------------------------
+# Adaptive EMA + RSI + ATR Momentum Day Trader
+#
+# Apply with:
+#   cd backend
+#   .venv/Scripts/python.exe scripts/apply_config.py ../config/adaptive_momentum.yaml
+#
+# Applying this file cannot enable live trading. That still needs
+# LIVE_TRADING_ENABLED=true in .env plus the explicit dashboard confirmation.
+#
+# THE VALUES BELOW ARE THE BASELINE FROM THE SPECIFICATION.
+# See docs/research/adaptive-momentum-study.md for what the study found and
+# whether the tuned values are worth using.
+# ---------------------------------------------------------------------------
+strategy:
+  name: adaptive_momentum
+  timeframe: 15m
+
+  indicators:
+    ema_fast: 20
+    ema_slow: 50
+    rsi_period: 14
+    adx_period: 14
+    atr_period: 14
+    volume_period: 20
+    vwap_period: 48
+    breakout_lookback: 5
+    higher_timeframe: 1h
+    htf_ema_fast: 50
+    htf_ema_slow: 200
+
+  filters:
+    rsi_long_min: 52.0
+    rsi_long_max: 72.0
+    rsi_short_max: 48.0
+    rsi_short_min: 28.0
+    min_adx: 20.0
+    volume_multiplier: 1.20
+    require_htf_trend: true
+    min_signal_score: 70.0
+    require_all_hard_rules: false
+    min_atr_pct: 0.30
+    max_atr_pct: 5.0
+    avoid_extreme_volatility: true
+    trade_only_in_trending_regime: false
+    allow_short: true
+
+  exits:
+    atr_stop_multiplier: 1.5
+    take_profit_r: 2.0
+    exit_model: atr          # atr | ema | hybrid
+    trailing_atr_multiplier: 1.5
+
+# ---------------------------------------------------------------------------
+# Risk envelope. The Risk Engine can veto any signal these rules disallow.
+# ---------------------------------------------------------------------------
+risk:
+  risk_per_trade_pct: 0.5
+  max_portfolio_risk_pct: 1.5      # informational: see max_total_exposure_pct
+  max_total_exposure_pct: 200.0
+  max_position_notional_pct: 100.0
+  max_concurrent_positions: 3
+  one_position_per_symbol: true
+  max_leverage: 3
+  daily_profit_target_pct: 100.0   # effectively off: this is a day-trading system
+  daily_loss_limit_pct: 2.0
+  max_trades_per_day: 20
+  max_consecutive_losses: 3
+  cooldown_minutes: 45
+  max_drawdown_pct: 15.0
+  min_signal_confidence: 0.0       # the strategy score already filters
+  max_spread_pct: 0.15
+  block_on_extreme_volatility: true
+  block_on_stale_data: true
+  taker_fee_pct: 0.05
+  slippage_pct: 0.05
+
+# ---------------------------------------------------------------------------
+# Which markets the engine runs on. Enabling a market is still a deliberate
+# choice; this list is what the study was run on.
+# ---------------------------------------------------------------------------
+trading:
+  timeframe: 15m
+  higher_timeframe: 1h
+  leverage: 3
+  enabled_symbols:
+    - BTC/USDT
+    - ETH/USDT
+    - SOL/USDT
+    - BNB/USDT
+    - XRP/USDT
+    - DOGE/USDT
+    - ADA/USDT
+    - AVAX/USDT
+    - LINK/USDT

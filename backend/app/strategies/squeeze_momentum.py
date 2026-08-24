@@ -111,7 +111,7 @@ class SqueezeMomentumStrategy(BaseStrategy):
         position_side: str | None = None,
     ) -> StrategySignal:
         params: SqueezeMomentumParams = self.params  # type: ignore[assignment]
-        row = prepared.iloc[index]
+        row = self._row(prepared, index)
         indicators: dict[str, Any] = self._indicator_snapshot(row, INDICATOR_COLUMNS)
         indicators["close"] = safe_float(row["close"])
 
@@ -124,7 +124,7 @@ class SqueezeMomentumStrategy(BaseStrategy):
         if None in (close, atr_value, momentum) or not atr_value or index == 0:
             return self._hold(symbol, timeframe, row, "Indicators not ready", indicators, regime)
 
-        previous = prepared.iloc[index - 1]
+        previous = self._row(prepared, index - 1)
         squeeze_before = safe_float(previous.get("squeeze_bars")) or 0.0
         released = (not squeeze_now) and squeeze_before >= params.min_squeeze_bars
         indicators["squeeze_bars_before_release"] = squeeze_before

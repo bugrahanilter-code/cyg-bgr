@@ -10,6 +10,7 @@ from typing import Any
 
 from app.core.constants import RISK_LEVEL_ORDER
 from app.core.exceptions import NotFoundError
+from app.strategies.adaptive_momentum import AdaptiveMomentumStrategy
 from app.strategies.base import BaseStrategy
 from app.strategies.breakout_donchian import DonchianBreakoutStrategy
 from app.strategies.dual_momentum import DualMomentumStrategy
@@ -45,6 +46,7 @@ BUILTIN_STRATEGIES: tuple[type[BaseStrategy], ...] = (
     TrendFollowingStrategy,
     DonchianBreakoutStrategy,
     MacdMomentumStrategy,
+    AdaptiveMomentumStrategy,
     IchimokuStrategy,
     SupertrendStrategy,
     # Risky: counter-trend, high frequency or direction-agnostic entries

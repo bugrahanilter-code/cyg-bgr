@@ -1,6 +1,6 @@
 # Strategies
 
-Thirteen independent, publicly documented systematic families ship with the
+Fourteen independent, publicly documented systematic families ship with the
 platform, grouped by how aggressive they are. The dashboard shows the risk
 level next to every strategy.
 
@@ -16,10 +16,11 @@ Details: [06-safe-strategies.md](06-safe-strategies.md)
 | `vwap_pullback` | Buy dips to VWAP inside a trend | Pullback becomes a reversal |
 | `keltner_trend` | Channel break with four confirmations | Trades very rarely |
 
-## Medium (5)
+## Medium (6)
 
 Standard systematic families with trend and strength filters.
-Details: [05-medium-risk-strategies.md](05-medium-risk-strategies.md) and
+Details: [05-medium-risk-strategies.md](05-medium-risk-strategies.md),
+[07-adaptive-momentum.md](07-adaptive-momentum.md) and
 [01-trend-following.md](01-trend-following.md),
 [02-breakout-donchian.md](02-breakout-donchian.md)
 
@@ -30,6 +31,7 @@ Details: [05-medium-risk-strategies.md](05-medium-risk-strategies.md) and
 | `macd_momentum` | MACD crossover with trend filter | Sideways whipsaws |
 | `ichimoku_trend` | Cloud + conversion/base cross | Slow to react |
 | `supertrend_follow` | ATR trailing-stop state flips | Flip-flops in chop |
+| `adaptive_momentum` | Scored 15m day trading, 1h trend gate | Chop, and cost drag if the score threshold is low |
 
 ## Risky (4)
 

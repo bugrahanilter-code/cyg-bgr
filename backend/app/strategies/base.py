@@ -132,6 +132,19 @@ class BaseStrategy(ABC):
             position_side=position_side,
         )
 
+    @staticmethod
+    def _row(prepared: Any, index: int) -> Any:
+        """Return one row from a prepared frame.
+
+        The backtester passes a pre-materialised list of dicts because
+        DataFrame.iloc costs about 48 microseconds per row, which dominates a
+        long simulation. A dict supports the same [] and .get() access, so the
+        strategies do not care which one they receive.
+        """
+        if isinstance(prepared, list):
+            return prepared[index]
+        return prepared.iloc[index]
+
     # -- shared helpers -----------------------------------------------------
     @staticmethod
     def _value(row: pd.Series, column: str) -> float | None:
@@ -161,3 +174,42 @@ class BaseStrategy(ABC):
             indicators=indicators or {},
             regime=regime,
         )
+
+
+def higher_timeframe_trend(
+    frame: pd.DataFrame,
+    higher_timeframe: str,
+    fast_period: int,
+    slow_period: int,
+) -> pd.DataFrame:
+    """Map a higher timeframe EMA trend onto the trading timeframe.
+
+    Only *completed* higher-timeframe candles are used: the series is shifted by
+    one bucket before it is mapped back, so a 15m bar can never see the 1h
+    candle it is currently inside. That single shift is what keeps the trend
+    filter free of look-ahead bias.
+
+    Returns three columns: the last closed higher-timeframe close and the fast
+    and slow EMAs computed on it.
+    """
+    bucket_ms = timeframe_to_ms(higher_timeframe)
+    buckets = (frame["open_time"] // bucket_ms).astype("int64")
+    closes = frame.groupby(buckets)["close"].last()
+
+    htf_close = closes.shift(1)
+    htf_fast = ema(closes, fast_period).shift(1)
+    htf_slow = ema(closes, slow_period).shift(1)
+
+    return pd.DataFrame(
+        {
+            "htf_close": pd.Series(
+                buckets.map(htf_close).to_numpy(), index=frame.index, dtype="float64"
+            ),
+            "htf_ema_fast": pd.Series(
+                buckets.map(htf_fast).to_numpy(), index=frame.index, dtype="float64"
+            ),
+            "htf_ema_slow": pd.Series(
+                buckets.map(htf_slow).to_numpy(), index=frame.index, dtype="float64"
+            ),
+        }
+    )

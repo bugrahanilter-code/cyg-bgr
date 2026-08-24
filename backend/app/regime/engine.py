@@ -185,7 +185,7 @@ class MarketRegimeEngine:
         """Build a RegimeResult from an already annotated frame."""
         if index < 0 or index >= len(annotated):
             return RegimeResult()
-        row = annotated.iloc[index]
+        row = annotated[index] if isinstance(annotated, list) else annotated.iloc[index]
         trend = TrendRegime(str(row.get("regime_trend", TrendRegime.UNKNOWN.value)))
         volatility = VolatilityRegime(
             str(row.get("regime_volatility", VolatilityRegime.UNKNOWN.value))

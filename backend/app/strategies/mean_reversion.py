@@ -117,7 +117,7 @@ class MeanReversionStrategy(BaseStrategy):
         position_side: str | None = None,
     ) -> StrategySignal:
         params: MeanReversionParams = self.params  # type: ignore[assignment]
-        row = prepared.iloc[index]
+        row = self._row(prepared, index)
         indicators: dict[str, Any] = self._indicator_snapshot(row, INDICATOR_COLUMNS)
         indicators["close"] = safe_float(row["close"])
 

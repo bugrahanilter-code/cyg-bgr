@@ -88,3 +88,6 @@ logs/
 .DS_Store
 Thumbs.db
 desktop.ini
+
+# Research artefacts (regenerate with backend/scripts/run_research.py)
+backend/research_*.json
