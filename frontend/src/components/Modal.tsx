@@ -1,0 +1,30 @@
+import type { ReactNode } from "react";
+
+interface ModalProps {
+  open: boolean;
+  title: string;
+  onClose: () => void;
+  children: ReactNode;
+  footer?: ReactNode;
+}
+
+/** Simple centred dialog. */
+export function Modal({ open, title, onClose, children, footer }: ModalProps) {
+  if (!open) {
+    return null;
+  }
+  return (
+    <div className="modal-backdrop" onClick={onClose} role="presentation">
+      <div className="modal" onClick={(event) => event.stopPropagation()} role="dialog">
+        <div className="row-between">
+          <h3>{title}</h3>
+          <button type="button" className="btn btn-sm btn-ghost" onClick={onClose}>
+            Close
+          </button>
+        </div>
+        {children}
+        {footer && <div className="btn-row">{footer}</div>}
+      </div>
+    </div>
+  );
+}

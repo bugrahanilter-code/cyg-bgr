@@ -1,0 +1,130 @@
+"""Persistence layer for historical candles.
+
+Historical data is cached locally so backtests are reproducible and do not
+hammer the exchange rate limits.
+"""
+
+from __future__ import annotations
+
+import pandas as pd
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
+
+from app.core.logging import get_logger
+from app.market_data.candles import OHLCV_COLUMNS, rows_to_dataframe
+from app.models.market import Candle
+
+logger = get_logger(__name__)
+
+
+def latest_open_time(db: Session, symbol: str, timeframe: str) -> int | None:
+    """Newest stored candle open time, or None when nothing is cached."""
+    result = db.execute(
+        select(func.max(Candle.open_time)).where(
+            Candle.symbol == symbol, Candle.timeframe == timeframe
+        )
+    ).scalar()
+    return int(result) if result is not None else None
+
+
+def earliest_open_time(db: Session, symbol: str, timeframe: str) -> int | None:
+    """Oldest stored candle open time."""
+    result = db.execute(
+        select(func.min(Candle.open_time)).where(
+            Candle.symbol == symbol, Candle.timeframe == timeframe
+        )
+    ).scalar()
+    return int(result) if result is not None else None
+
+
+def count_candles(db: Session, symbol: str, timeframe: str) -> int:
+    """Number of cached candles for a market/timeframe."""
+    result = db.execute(
+        select(func.count(Candle.id)).where(
+            Candle.symbol == symbol, Candle.timeframe == timeframe
+        )
+    ).scalar()
+    return int(result or 0)
+
+
+def save_candles(db: Session, symbol: str, timeframe: str, frame: pd.DataFrame) -> int:
+    """Insert candles that are not stored yet. Returns the number inserted."""
+    if frame is None or frame.empty:
+        return 0
+
+    open_times = [int(value) for value in frame["open_time"].tolist()]
+    existing = set(
+        db.execute(
+            select(Candle.open_time).where(
+                Candle.symbol == symbol,
+                Candle.timeframe == timeframe,
+                Candle.open_time.in_(open_times),
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    timeframe_ms = int(frame["open_time"].diff().median()) if len(frame) > 1 else 0
+    inserted = 0
+    for row in frame.itertuples(index=False):
+        open_time = int(row.open_time)
+        if open_time in existing:
+            continue
+        db.add(
+            Candle(
+                symbol=symbol,
+                timeframe=timeframe,
+                open_time=open_time,
+                close_time=open_time + timeframe_ms - 1 if timeframe_ms else open_time,
+                open=float(row.open),
+                high=float(row.high),
+                low=float(row.low),
+                close=float(row.close),
+                volume=float(row.volume),
+            )
+        )
+        inserted += 1
+    if inserted:
+        db.commit()
+    return inserted
+
+
+def load_candles(
+    db: Session,
+    symbol: str,
+    timeframe: str,
+    start_ms: int | None = None,
+    end_ms: int | None = None,
+    limit: int | None = None,
+) -> pd.DataFrame:
+    """Load cached candles as the canonical DataFrame."""
+    query = select(
+        Candle.open_time, Candle.open, Candle.high, Candle.low, Candle.close, Candle.volume
+    ).where(Candle.symbol == symbol, Candle.timeframe == timeframe)
+
+    if start_ms is not None:
+        query = query.where(Candle.open_time >= start_ms)
+    if end_ms is not None:
+        query = query.where(Candle.open_time <= end_ms)
+
+    if limit is not None:
+        query = query.order_by(Candle.open_time.desc()).limit(limit)
+        rows = list(db.execute(query).all())
+        rows.reverse()
+    else:
+        query = query.order_by(Candle.open_time.asc())
+        rows = list(db.execute(query).all())
+
+    if not rows:
+        return pd.DataFrame(columns=OHLCV_COLUMNS)
+    return rows_to_dataframe([[float(value) for value in row] for row in rows])
+
+
+def delete_candles(db: Session, symbol: str, timeframe: str) -> int:
+    """Remove every cached candle for a market/timeframe (maintenance helper)."""
+    deleted = (
+        db.query(Candle).filter(Candle.symbol == symbol, Candle.timeframe == timeframe).delete()
+    )
+    db.commit()
+    return int(deleted or 0)

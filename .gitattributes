@@ -1,0 +1,19 @@
+# Normalise line endings so a Windows clone still produces working Linux
+# containers. Shell scripts MUST stay LF or the container shebang breaks.
+* text=auto eol=lf
+
+*.sh            text eol=lf
+Dockerfile      text eol=lf
+*.Dockerfile    text eol=lf
+*.conf          text eol=lf
+*.yml           text eol=lf
+*.yaml          text eol=lf
+*.py            text eol=lf
+*.ts            text eol=lf
+*.tsx           text eol=lf
+*.json          text eol=lf
+*.md            text eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary

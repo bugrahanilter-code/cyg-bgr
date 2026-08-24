@@ -1,0 +1,84 @@
+# ---------------------------------------------------------------------------
+# One command starts everything:
+#
+#     docker compose up --build
+#
+# Dashboard : http://localhost:3000
+# API docs  : http://localhost:8000/docs
+#
+# Values are read from the .env file in this directory when it exists,
+# otherwise the safe defaults below are used.
+# ---------------------------------------------------------------------------
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: trading_db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-trader}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-change_this_password}
+      POSTGRES_DB: ${POSTGRES_DB:-trading}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-trader} -d ${POSTGRES_DB:-trading}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: docker/backend.Dockerfile
+    container_name: trading_backend
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      APP_ENV: ${APP_ENV:-development}
+      SECRET_KEY: ${SECRET_KEY:-}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      LOG_JSON: ${LOG_JSON:-true}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:3000,http://127.0.0.1:3000}
+      DATABASE_URL: postgresql+psycopg2://${POSTGRES_USER:-trader}:${POSTGRES_PASSWORD:-change_this_password}@db:5432/${POSTGRES_DB:-trading}
+      BINANCE_API_KEY: ${BINANCE_API_KEY:-}
+      BINANCE_API_SECRET: ${BINANCE_API_SECRET:-}
+      BINANCE_TESTNET: ${BINANCE_TESTNET:-false}
+      BINANCE_MARKET_TYPE: ${BINANCE_MARKET_TYPE:-futures}
+      TRADING_MODE: ${TRADING_MODE:-paper}
+      LIVE_TRADING_ENABLED: ${LIVE_TRADING_ENABLED:-false}
+      ENABLED_SYMBOLS: ${ENABLED_SYMBOLS:-BTC/USDT,ETH/USDT}
+      DEFAULT_TIMEFRAME: ${DEFAULT_TIMEFRAME:-15m}
+      HIGHER_TIMEFRAME: ${HIGHER_TIMEFRAME:-4h}
+      PAPER_STARTING_BALANCE: ${PAPER_STARTING_BALANCE:-10000}
+      RISK_PER_TRADE_PCT: ${RISK_PER_TRADE_PCT:-0.5}
+      DAILY_PROFIT_TARGET_PCT: ${DAILY_PROFIT_TARGET_PCT:-2.0}
+      DAILY_LOSS_LIMIT_PCT: ${DAILY_LOSS_LIMIT_PCT:-1.5}
+      MAX_CONCURRENT_POSITIONS: ${MAX_CONCURRENT_POSITIONS:-2}
+      MAX_TRADES_PER_DAY: ${MAX_TRADES_PER_DAY:-15}
+      MAX_CONSECUTIVE_LOSSES: ${MAX_CONSECUTIVE_LOSSES:-3}
+      MAX_LEVERAGE: ${MAX_LEVERAGE:-3}
+    volumes:
+      - backend_data:/app/data
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+
+  frontend:
+    build:
+      context: .
+      dockerfile: docker/frontend.Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+    container_name: trading_frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "${FRONTEND_PORT:-3000}:80"
+
+volumes:
+  pgdata:
+  backend_data:
