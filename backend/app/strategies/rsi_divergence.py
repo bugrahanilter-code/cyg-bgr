@@ -51,13 +51,12 @@ class RsiDivergenceStrategy(BaseStrategy):
     """Counter-trend reversal on price/RSI disagreement."""
 
     key = "rsi_divergence"
-    name = "RSI Divergence Reversal"
+    name = "RSI Uyumsuzluğu"
     family = "mean_reversion"
     risk_level = RiskLevel.RISKY
     description = (
-        "Buys when price makes a lower low but RSI does not, and sells the "
-        "mirror case. Counter-trend by construction: it can be wrong for a "
-        "long time during a strong move."
+        "Fiyat yeni bir uç yaparken RSI'ın onu doğrulamadığı yerleri arar. Nadir "
+        "sinyal üretir ve trend devam ederse erken girer."
     )
     params_model = RsiDivergenceParams
 

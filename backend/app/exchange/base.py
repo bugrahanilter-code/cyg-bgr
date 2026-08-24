@@ -168,3 +168,14 @@ class ExchangeGateway(ABC):
     @abstractmethod
     async def set_leverage(self, symbol: str, leverage: int) -> None:
         """Set the leverage for a futures market (no-op on spot)."""
+
+    # -- discovery (optional, not every gateway can enumerate markets) -------
+    async def fetch_top_symbols_by_volume(self, limit: int = 10, quote: str = "USDT") -> list[dict]:
+        """Highest volume markets. Gateways without discovery return nothing."""
+        return []
+
+    async def fetch_market_universe(
+        self, quote: str = "USDT", include_non_crypto: bool = False
+    ) -> list[dict]:
+        """Every tradable market with its 24 hour statistics."""
+        return []

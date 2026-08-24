@@ -14,7 +14,7 @@ from app.core.constants import (
     VolatilityRegime,
 )
 from app.core.time_utils import utcnow
-from app.exchange.filters import default_filters_for
+from app.exchange.filters import SymbolFilters, default_filters_for
 from app.regime.engine import RegimeResult
 from app.risk.config import RiskConfig
 from app.risk.engine import OpenPositionInfo, RiskContext, RiskEngine
@@ -162,3 +162,50 @@ def test_max_drawdown_blocks_trading(engine: RiskEngine) -> None:
 def test_hold_signal_is_never_executable(engine: RiskEngine) -> None:
     decision = engine.evaluate(build_signal(signal=SignalType.HOLD), build_context())
     assert not decision.approved
+
+
+class TestLeverageBand:
+    """min_leverage is a floor, max_leverage a ceiling, the exchange wins both."""
+
+    def test_leverage_below_the_floor_is_raised(self) -> None:
+        engine = RiskEngine(RiskConfig(min_leverage=3, max_leverage=10))
+        decision = engine.evaluate(build_signal(), build_context(leverage=1.0))
+        assert decision.sizing is not None
+        assert decision.sizing.leverage == pytest.approx(3.0)
+        assert any("raised" in warning for warning in decision.warnings)
+
+    def test_leverage_above_the_ceiling_is_reduced(self) -> None:
+        engine = RiskEngine(RiskConfig(min_leverage=1, max_leverage=5))
+        decision = engine.evaluate(build_signal(), build_context(leverage=20.0))
+        assert decision.sizing is not None
+        assert decision.sizing.leverage == pytest.approx(5.0)
+        assert any("reduced" in warning for warning in decision.warnings)
+
+    def test_leverage_inside_the_band_is_untouched(self) -> None:
+        engine = RiskEngine(RiskConfig(min_leverage=2, max_leverage=10))
+        decision = engine.evaluate(build_signal(), build_context(leverage=4.0))
+        assert decision.sizing is not None
+        assert decision.sizing.leverage == pytest.approx(4.0)
+        assert not any("leverage" in warning.lower() for warning in decision.warnings)
+
+    def test_the_exchange_cap_beats_the_configured_floor(self) -> None:
+        """Forcing leverage above what a market allows only gets the order
+        rejected by the exchange, so the exchange cap wins."""
+        thin = SymbolFilters(symbol="BTC/USDT", max_leverage=5)
+        engine = RiskEngine(RiskConfig(min_leverage=20, max_leverage=50))
+        decision = engine.evaluate(build_signal(), build_context(leverage=1.0, filters=thin))
+        assert decision.sizing is not None
+        assert decision.sizing.leverage == pytest.approx(5.0)
+        assert any("allows at most" in warning for warning in decision.warnings)
+
+    def test_an_inverted_band_is_rejected_at_configuration_time(self) -> None:
+        with pytest.raises(ValueError, match="cannot exceed"):
+            RiskConfig(min_leverage=10, max_leverage=3)
+
+    def test_the_default_band_changes_nothing(self) -> None:
+        """A fresh install must size exactly as it did before this setting."""
+        config = RiskConfig()
+        assert config.min_leverage == 1
+        decision = RiskEngine(config).evaluate(build_signal(), build_context(leverage=2.0))
+        assert decision.sizing is not None
+        assert decision.sizing.leverage == pytest.approx(2.0)

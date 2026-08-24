@@ -15,13 +15,40 @@ from app.portfolio.engine import PortfolioEngine
 from app.services import analytics_service, bot_state_service, settings_service
 
 
-def _position_payload(position: Position, price: float | None) -> dict[str, Any]:
+def _position_payload(
+    position: Position, price: float | None, taker_fee_pct: float = 0.04
+) -> dict[str, Any]:
     entry = float(position.entry_price)
     quantity = float(position.quantity)
     current = price if price and price > 0 else entry
     direction = 1.0 if position.side == "LONG" else -1.0
     unrealized = (current - entry) * quantity * direction
     margin = float(position.margin or 0.0)
+
+    # Two different percentages, and confusing them is how people misjudge a
+    # position. price_change_pct is how far the market moved. return_on_margin_pct
+    # is what that did to the money actually committed, which leverage multiplies.
+    # At 10x a 1% move is a 10% return, so showing one number labelled "%" would
+    # be misleading whichever of the two it happened to be.
+    price_change_pct = ((current - entry) / entry * 100.0 * direction) if entry > 0 else 0.0
+
+    entry_notional = entry * quantity
+    current_notional = current * quantity
+
+    # What closing right now would actually bank. The entry fee is already
+    # paid, the exit fee is not yet but is unavoidable, and funding has been
+    # accruing. Showing the raw price difference as "profit" tells you that you
+    # are ahead while a round trip can still leave you behind, which on a 0.12%
+    # cost base is a large share of a typical winner.
+    entry_fees = float(position.fees_paid or 0.0)
+    funding_paid = float(position.funding_paid or 0.0)
+    estimated_exit_fee = current_notional * taker_fee_pct / 100.0
+    total_costs = entry_fees + funding_paid + estimated_exit_fee
+    net_unrealized = unrealized - total_costs
+
+    return_on_margin_pct = (net_unrealized / margin * 100.0) if margin > 0 else price_change_pct
+    #: Price move needed just to cover the round trip, from here.
+    breakeven_move_pct = (total_costs / current_notional * 100.0) if current_notional > 0 else 0.0
     return {
         "id": position.id,
         "uid": position.uid,
@@ -38,9 +65,24 @@ def _position_payload(position: Position, price: float | None) -> dict[str, Any]
         "leverage": float(position.leverage or 1.0),
         "margin": margin,
         "liquidation_price": position.liquidation_price,
-        "unrealized_pnl": unrealized,
-        "unrealized_pnl_pct": (unrealized / margin * 100.0) if margin > 0 else 0.0,
-        "notional": entry * quantity,
+        #: Net of every cost: what closing right now would actually bank.
+        "unrealized_pnl": net_unrealized,
+        #: The raw price difference, before any cost.
+        "unrealized_pnl_gross": unrealized,
+        "entry_fees_paid": entry_fees,
+        "funding_paid": funding_paid,
+        "estimated_exit_fee": estimated_exit_fee,
+        "total_costs": total_costs,
+        "breakeven_move_pct": breakeven_move_pct,
+        #: Leveraged return on committed margin, net of costs.
+        "unrealized_pnl_pct": return_on_margin_pct,
+        "price_change_pct": price_change_pct,
+        "return_on_margin_pct": return_on_margin_pct,
+        #: Value of the position when it was opened.
+        "notional": entry_notional,
+        #: Value of the position right now, which is what "position size in
+        #: dollars" means to anyone looking at a live book.
+        "current_notional": current_notional,
         "opened_at": position.opened_at,
         "market_regime": position.market_regime,
         "signal_confidence": float(position.signal_confidence or 0.0),
@@ -52,8 +94,9 @@ def _position_payload(position: Position, price: float | None) -> dict[str, Any]
 def open_positions_payload(db: Session, mode: TradingMode, price_lookup) -> list[dict[str, Any]]:
     """Open positions enriched with live prices."""
     portfolio = PortfolioEngine(mode)
+    taker_fee_pct = settings_service.get_risk_config(db).taker_fee_pct
     return [
-        _position_payload(position, price_lookup(position.symbol))
+        _position_payload(position, price_lookup(position.symbol), taker_fee_pct)
         for position in portfolio.open_positions(db)
     ]
 

@@ -70,13 +70,12 @@ class MeanReversionStrategy(BaseStrategy):
     """Bollinger / z-score / RSI reversion, only in ranging markets."""
 
     key = "mean_reversion"
-    name = "Statistical Mean Reversion"
+    name = "Ortalamaya Dönüş"
     family = "mean_reversion"
     risk_level = RiskLevel.RISKY
     description = (
-        "Fades extreme deviations from a rolling mean while a regime filter "
-        "keeps it out of trending markets. Vulnerable to sustained trends and "
-        "to volatility expansions."
+        "Yalnızca yatay rejimde, aşırı satım/alım uçlarından ortalamaya dönüşü "
+        "hedefler. Güçlü bir trend başladığında en çok zarar eden aile."
     )
     params_model = MeanReversionParams
 

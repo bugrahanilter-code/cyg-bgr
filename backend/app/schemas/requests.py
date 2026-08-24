@@ -68,6 +68,9 @@ class StrategyUpdateRequest(BaseModel):
 
 class ClosePositionRequest(BaseModel):
     reason: str = Field(default="manual", max_length=64)
+    #: Close only this share of the position, 1-100. The default closes all of
+    #: it, so an existing caller that sends no percentage is unaffected.
+    percent: float = Field(default=100.0, gt=0.0, le=100.0)
 
 
 class BacktestRunRequest(BaseModel):
@@ -102,4 +105,9 @@ class CandleDownloadRequest(BaseModel):
 
 class PaperResetRequest(BaseModel):
     starting_balance: float = Field(default=10_000.0, gt=0)
+    #: Delete the paper trades, orders, signals and positions.
     clear_history: bool = False
+    #: Delete the equity curve and the daily counters. Stored separately from
+    #: the trades, so clearing only the trades leaves a chart still climbing
+    #: away from an account that was just reset to its starting balance.
+    clear_equity_curve: bool = False

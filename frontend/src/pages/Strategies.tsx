@@ -10,7 +10,14 @@ import { strategyService } from "@/services/tradingService";
 import { useAppState } from "@/state/appStateContext";
 import type { StrategySummary } from "@/types/api";
 import { formatCurrency, formatPercent, formatPrice, formatSignedCurrency, pnlClass } from "@/utils/format";
-import { RISK_LEVEL_HELP, RISK_LEVEL_LABEL, riskTone, signalTone } from "@/utils/tone";
+import {
+  REGIME_LABEL,
+  RISK_LEVEL_HELP,
+  RISK_LEVEL_LABEL,
+  SIGNAL_LABEL,
+  riskTone,
+  signalTone,
+} from "@/utils/tone";
 
 function StrategyCard({ strategy }: { strategy: StrategySummary }) {
   const { pushToast } = useAppState();
@@ -41,7 +48,7 @@ function StrategyCard({ strategy }: { strategy: StrategySummary }) {
     [["strategies"]],
     {
       onSuccess: () => {
-        pushToast("Default parameters restored", "success");
+        pushToast("Varsayılan parametreler geri yüklendi", "success");
         setDirty(false);
       },
     },
@@ -72,32 +79,38 @@ function StrategyCard({ strategy }: { strategy: StrategySummary }) {
     >
       <div className="grid grid-4">
         <div className="stat-card">
-          <div className="stat-label">Current signal</div>
+          <div className="stat-label">Güncel sinyal</div>
           <div className="stat-value" style={{ fontSize: 16 }}>
-            {signal ? <Badge tone={signalTone(signal.signal)}>{signal.signal}</Badge> : "-"}
+            {signal ? (
+              <Badge tone={signalTone(signal.signal)}>
+                {SIGNAL_LABEL[signal.signal] ?? signal.signal}
+              </Badge>
+            ) : (
+              "-"
+            )}
           </div>
           <div className="stat-hint">
-            {signal ? "Confidence " + (signal.confidence * 100).toFixed(0) + "%" : "Waiting for a candle"}
+            {signal ? "Güven " + (signal.confidence * 100).toFixed(0) + "%" : "Mum bekleniyor"}
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Market regime</div>
+          <div className="stat-label">Piyasa rejimi</div>
           <div className="stat-value" style={{ fontSize: 14 }}>
-            {signal?.regime?.regime ?? "UNKNOWN"}
+            {REGIME_LABEL[signal?.regime?.regime ?? "UNKNOWN"] ?? "Bilinmiyor"}
           </div>
           <div className="stat-hint">
             {signal?.regime ? "ADX " + (signal.regime.adx ?? 0).toFixed(1) : ""}
           </div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Net PnL</div>
+          <div className="stat-label">Net K/Z</div>
           <div className={"stat-value " + pnlClass(performance.net_pnl)} style={{ fontSize: 18 }}>
             {formatSignedCurrency(performance.net_pnl)}
           </div>
           <div className="stat-hint">{performance.trades} trades</div>
         </div>
         <div className="stat-card">
-          <div className="stat-label">Win rate</div>
+          <div className="stat-label">Kazanma oranı</div>
           <div className="stat-value" style={{ fontSize: 18 }}>
             {performance.win_rate_pct.toFixed(1)}%
           </div>
@@ -143,7 +156,7 @@ function StrategyCard({ strategy }: { strategy: StrategySummary }) {
               disabled={!dirty || update.isPending}
               onClick={() => update.mutate({ params })}
             >
-              Save parameters
+              Parametreleri kaydet
             </button>
             <button
               type="button"
@@ -163,19 +176,19 @@ function StrategyCard({ strategy }: { strategy: StrategySummary }) {
 
       <div className="grid grid-4 small">
         <div className="definition">
-          <span>Expectancy</span>
+          <span>Beklenti</span>
           <span>{formatCurrency(performance.expectancy)}</span>
         </div>
         <div className="definition">
-          <span>Average win</span>
+          <span>Ortalama kâr</span>
           <span>{formatCurrency(performance.average_win)}</span>
         </div>
         <div className="definition">
-          <span>Average loss</span>
+          <span>Ortalama zarar</span>
           <span>{formatCurrency(performance.average_loss)}</span>
         </div>
         <div className="definition">
-          <span>Average return</span>
+          <span>Ortalama getiri</span>
           <span>{formatPercent(performance.average_return_pct)}</span>
         </div>
       </div>
@@ -201,26 +214,6 @@ export function StrategiesPage() {
 
   return (
     <>
-      <div className="page-header">
-        <div>
-          <h1>Strategies</h1>
-          <p>
-            Thirteen independent, publicly documented systematic families, grouped by how
-            aggressive they are. Each one can be turned on or off separately and each one
-            documents the conditions in which it loses money.
-          </p>
-        </div>
-        <div className="row">
-          {(["safe", "medium", "risky"] as const).map((level) => (
-            <span key={level} title={RISK_LEVEL_HELP[level]}>
-              <Badge tone={riskTone(level)}>
-                {RISK_LEVEL_LABEL[level]} {strategies.filter((s) => s.risk_level === level).length}
-              </Badge>
-            </span>
-          ))}
-        </div>
-      </div>
-
       {(["safe", "medium", "risky"] as const).map((level) => {
         const group = strategies.filter((strategy) => strategy.risk_level === level);
         if (group.length === 0) {

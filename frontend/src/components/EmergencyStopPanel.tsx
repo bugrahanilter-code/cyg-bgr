@@ -15,23 +15,23 @@ const LEVELS: Array<{
 }> = [
   {
     level: "HALT_NEW_ENTRIES",
-    title: "1. Stop opening new trades",
+    title: "1. Yeni işlem açmayı durdur",
     description:
-      "Existing positions keep their stop loss and take profit. Nothing new is opened.",
+      "Açık pozisyonlar stop ve hedefleriyle kalır. Yeni pozisyon açılmaz.",
     className: "btn btn-warning btn-block",
   },
   {
     level: "CLOSE_ALL_POSITIONS",
-    title: "2. Close every open position",
+    title: "2. Tüm açık pozisyonları kapat",
     description:
-      "Sends a market order for every open position and then blocks new entries.",
+      "Her açık pozisyon için piyasa emri gönderir, sonra yeni girişleri engeller.",
     className: "btn btn-danger btn-block",
   },
   {
     level: "FULL_STOP",
-    title: "3. Stop the whole system",
+    title: "3. Sistemi tamamen durdur",
     description:
-      "Stops the trading engine completely. It stays stopped after a restart until you clear it.",
+      "Motoru tamamen durdurur. Siz kaldırana kadar yeniden başlatmadan sonra da durur.",
     className: "btn btn-danger btn-block",
   },
 ];
@@ -47,7 +47,7 @@ export function EmergencyStopPanel({ currentLevel }: Props) {
 
   const mutation = useApiMutation(
     (level: EmergencyStopLevel) =>
-      systemService.emergencyStop(level, "Triggered from the dashboard"),
+      systemService.emergencyStop(level, "Panelden tetiklendi"),
     [["system-status"], ["overview"], ["positions"], ["health"]],
     {
       onSuccess: (response) => pushToast(response.message, "success"),
@@ -59,8 +59,8 @@ export function EmergencyStopPanel({ currentLevel }: Props) {
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {currentLevel !== "NONE" && (
         <Banner tone="danger">
-          Emergency stop is active: <strong>{currentLevel}</strong>. No new position will be
-          opened until you clear it.
+          Acil durdurma etkin: <strong>{currentLevel}</strong>. Siz kaldırana kadar yeni
+          pozisyon açılmayacak.
         </Banner>
       )}
 
@@ -85,13 +85,13 @@ export function EmergencyStopPanel({ currentLevel }: Props) {
           disabled={mutation.isPending}
           onClick={() => setPending("NONE")}
         >
-          Clear the emergency stop
+          Acil durdurmayı kaldır
         </button>
       )}
 
       <Modal
         open={pending !== null}
-        title="Confirm"
+        title="Onay"
         onClose={() => setPending(null)}
         footer={
           <>
@@ -105,21 +105,21 @@ export function EmergencyStopPanel({ currentLevel }: Props) {
                 setPending(null);
               }}
             >
-              Yes, do it
+              Evet, uygula
             </button>
             <button type="button" className="btn" onClick={() => setPending(null)}>
-              Cancel
+              Vazgeç
             </button>
           </>
         }
       >
         <p>
-          You are about to set the emergency stop to <strong>{pending}</strong>.
+          Acil durdurmayı <strong>{pending}</strong> seviyesine almak üzeresiniz.
         </p>
         {pending === "CLOSE_ALL_POSITIONS" && (
           <Banner tone="warning">
-            Every open position will be closed at the current market price. Losses become
-            permanent.
+            Her açık pozisyon güncel piyasa fiyatından kapatılır. Zararlar
+            kalıcı hale gelir.
           </Banner>
         )}
       </Modal>

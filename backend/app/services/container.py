@@ -29,6 +29,7 @@ from app.market_data.service import MarketDataService
 from app.models.market import Symbol
 from app.portfolio.engine import PortfolioEngine
 from app.services import bot_state_service, credentials_service, settings_service
+from app.services.rotation_scheduler import RotationScheduler
 from app.services.trading_engine import TradingEngine
 
 logger = get_logger(__name__)
@@ -40,6 +41,7 @@ class AppContext:
     def __init__(self) -> None:
         self.settings = get_settings()
         self.data_gateway: BinanceGateway | None = None
+        self.rotation_scheduler = RotationScheduler(self)
         self.trading_gateway: ExchangeGateway | None = None
         self.market_data: MarketDataService | None = None
         self.engine: TradingEngine | None = None
@@ -71,8 +73,15 @@ class AppContext:
         ):
             await self.engine.start()
 
+        # The rotation clock runs whatever the engine is doing: it only edits
+        # the enabled symbol list, and it checks its own on/off switch every
+        # tick, so starting it here costs nothing when rotation is disabled.
+        if self.settings.enable_background_engine:
+            await self.rotation_scheduler.start()
+
     async def shutdown(self) -> None:
         """Stop background tasks and release network resources."""
+        await self.rotation_scheduler.stop()
         if self.engine is not None:
             await self.engine.stop()
         if self.market_data is not None:

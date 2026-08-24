@@ -46,6 +46,7 @@ from app.portfolio.engine import PortfolioEngine
 from app.reconciliation.engine import ReconciliationEngine
 from app.regime.engine import MarketRegimeEngine, RegimeResult
 from app.risk.engine import OpenPositionInfo, RiskContext, RiskEngine
+from app.risk.exit_policy import update_stop
 from app.services import bot_state_service, settings_service
 from app.services.event_service import log_event
 from app.signals.models import StrategySignal
@@ -339,25 +340,42 @@ class TradingEngine:
         return None
 
     def _update_trailing_stop(self, position: Position, price: float) -> None:
-        """Move the stop in the profitable direction only."""
+        """Move the stop forward using the configured exit policy.
+
+        Delegates to the same function the backtester calls, so a trailing rule
+        set in Risk Settings behaves identically in the simulation and here.
+        """
         meta = position.meta or {}
         atr = meta.get("atr")
         multiplier = float(meta.get("trailing_atr_multiplier", 0.0) or 0.0)
-        if not atr or multiplier <= 0:
+        strategy_trail = float(atr) * multiplier if atr and multiplier > 0 else None
+
+        entry = float(position.entry_price or 0.0)
+        base_stop = float(position.stop_loss or 0.0)
+        if entry <= 0 or base_stop <= 0:
             return
-        distance = float(atr) * multiplier
-        if position.side == PositionSide.LONG.value:
-            candidate = price - distance
-            floor_value = float(position.stop_loss or candidate)
-            best = max(candidate, floor_value)
-            if position.trailing_stop is None or best > float(position.trailing_stop):
-                position.trailing_stop = best
-        else:
-            candidate = price + distance
-            ceiling = float(position.stop_loss or candidate)
-            best = min(candidate, ceiling)
-            if position.trailing_stop is None or best < float(position.trailing_stop):
-                position.trailing_stop = best
+        risk_distance = abs(entry - base_stop)
+
+        side = SignalType.LONG if position.side == PositionSide.LONG.value else SignalType.SHORT
+        current = float(position.trailing_stop if position.trailing_stop is not None else base_stop)
+        # The best price reached is tracked on the position; fall back to the
+        # current price for a position opened before that field existed.
+        best_price = float(meta.get("extreme_price") or price)
+        best_price = max(best_price, price) if side == SignalType.LONG else min(best_price, price)
+
+        updated, reason = update_stop(
+            self.risk_engine.config,
+            side=side,
+            entry_price=entry,
+            current_stop=current,
+            risk_distance=risk_distance,
+            best_price=best_price,
+            strategy_trail=strategy_trail,
+        )
+        meta["extreme_price"] = best_price
+        position.meta = dict(meta)
+        if reason is not None and updated != current:
+            position.trailing_stop = updated
 
     async def _sync_protective_fills(self, db: Session) -> None:
         """Detect stop/take-profit orders that the exchange already filled."""
@@ -572,6 +590,7 @@ class TradingEngine:
                 leverage=context.leverage,
                 timeframe=trading_config.timeframe,
                 signal_row_id=row.id if row else None,
+                exits=decision.exits,
             )
         except TradingPlatformError as exc:
             if row is not None:

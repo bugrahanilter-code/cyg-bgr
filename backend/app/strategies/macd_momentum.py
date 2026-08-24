@@ -51,8 +51,8 @@ class MacdMomentumStrategy(BaseStrategy):
     family = "momentum"
     risk_level = RiskLevel.MEDIUM
     description = (
-        "Takes MACD signal-line crossovers in the direction of a long-term EMA. "
-        "Reliable in trends, prone to whipsaws when the market goes sideways."
+        "MACD sinyal çizgisi kesişimlerini uzun vadeli EMA yönünde alır. Trendlerde "
+        "güvenilir, piyasa yatayken testere hareketlerine açık."
     )
     params_model = MacdMomentumParams
 

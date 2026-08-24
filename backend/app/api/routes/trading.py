@@ -9,6 +9,7 @@ from fastapi import APIRouter, HTTPException
 from app.api.deps import Context, DbSession
 from app.core.config import get_settings
 from app.core.constants import EventSeverity, TradingMode
+from app.models.account import BalanceSnapshot, DailyStatistic
 from app.models.trading import Order, Position, Signal, Trade
 from app.portfolio.engine import PortfolioEngine
 from app.schemas.common import MessageResponse
@@ -104,7 +105,10 @@ def reset_paper(payload: PaperResetRequest, db: DbSession) -> MessageResponse:
     if open_positions:
         raise HTTPException(
             status_code=409,
-            detail="Close every open paper position before resetting the account.",
+            detail=(
+                "Sıfırlamadan önce tüm açık kağıt pozisyonlarını kapatın. "
+                f"Şu anda {len(open_positions)} açık pozisyon var."
+            ),
         )
     portfolio.set_balance(db, payload.starting_balance)
     removed = 0
@@ -114,6 +118,14 @@ def reset_paper(payload: PaperResetRequest, db: DbSession) -> MessageResponse:
         db.query(Signal).filter(Signal.mode == TradingMode.PAPER.value).delete()
         db.query(Position).filter(Position.mode == TradingMode.PAPER.value).delete()
         db.commit()
+
+    if payload.clear_equity_curve:
+        # The equity curve and the daily counters are stored separately from the
+        # trades. Clearing only the trades used to leave a chart still climbing
+        # away from an account that had just been reset to its starting balance.
+        db.query(BalanceSnapshot).filter(BalanceSnapshot.mode == TradingMode.PAPER.value).delete()
+        db.query(DailyStatistic).filter(DailyStatistic.mode == TradingMode.PAPER.value).delete()
+        db.commit()
     event_service.log_event(
         db,
         message=f"Paper account reset to {payload.starting_balance}",
@@ -121,4 +133,19 @@ def reset_paper(payload: PaperResetRequest, db: DbSession) -> MessageResponse:
         severity=EventSeverity.WARNING,
         mode=TradingMode.PAPER.value,
     )
-    return MessageResponse(message="Paper account reset.", details={"removed_trades": removed})
+    return MessageResponse(
+        message=(
+            f"Kağıt hesap {payload.starting_balance:,.0f} USDT ile sıfırlandı."
+            + (f" {removed} işlem silindi." if removed else "")
+            + (
+                " Equity eğrisi ve günlük istatistikler temizlendi."
+                if payload.clear_equity_curve
+                else ""
+            )
+        ),
+        details={
+            "removed_trades": removed,
+            "cleared_equity_curve": payload.clear_equity_curve,
+            "starting_balance": payload.starting_balance,
+        },
+    )

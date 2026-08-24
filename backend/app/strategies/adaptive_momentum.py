@@ -22,6 +22,7 @@ from __future__ import annotations
 
 from typing import Any
 
+import numpy as np
 import pandas as pd
 from pydantic import BaseModel, Field
 
@@ -134,15 +135,13 @@ class AdaptiveMomentumStrategy(BaseStrategy):
     """Scored intraday momentum system with a higher timeframe trend gate."""
 
     key = "adaptive_momentum"
-    name = "Adaptive EMA + RSI + ATR Momentum Day Trader"
+    name = "Uyarlanabilir Momentum"
     family = "momentum"
     risk_level = RiskLevel.MEDIUM
     description = (
-        "Intraday momentum on 15m gated by a 1h EMA trend filter. Seven "
-        "components (trend, EMA structure, RSI, volume, ADX, VWAP, breakout) "
-        "produce a 0-100 score and only high scores are traded. Designed for "
-        "trending intraday conditions; it loses money in chop and pays a large "
-        "cost bill if the score threshold is set too low."
+        "EMA yapısı, RSI momentumu, hacim onayı ve ATR tabanlı risk yönetimini tek "
+        "bir puanda birleştirir. Yedi bileşenin (trend, EMA yapısı, RSI, hacim, ADX, "
+        "VWAP, kırılım) her biri puana katkı verir."
     )
     params_model = AdaptiveMomentumParams
 
@@ -172,7 +171,12 @@ class AdaptiveMomentumStrategy(BaseStrategy):
         result["vwap"] = rolling_vwap(high, low, close, volume, params.vwap_period)
 
         result["volume_sma"] = sma(volume, params.volume_period)
-        safe_volume_sma = result["volume_sma"].replace(0.0, pd.NA).astype("float64")
+        # A zero average volume would divide by zero, so it is blanked out. This
+        # uses NaN rather than pd.NA on purpose: on a feed with NO volume at all
+        # (spot FX has no consolidated volume) every value is blanked, and a
+        # pd.NA column cannot be cast back to float64 - it raised TypeError and
+        # took the whole backtest down instead of simply scoring no volume.
+        safe_volume_sma = result["volume_sma"].replace(0.0, np.nan)
         result["volume_ratio"] = volume / safe_volume_sma
 
         # Shifted by one bar: the level a candle breaks out of must be built

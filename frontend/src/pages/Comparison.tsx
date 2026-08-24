@@ -46,40 +46,31 @@ export function ComparisonPage() {
 
   return (
     <>
-      <div className="page-header">
-        <div>
-          <h1>Strategy comparison</h1>
-          <p>
-            Side by side performance per strategy and per market. Small sample sizes are
-            noise: treat fewer than 30 trades as no information at all.
-          </p>
-        </div>
-        <div className="field" style={{ minWidth: 160 }}>
-          <label htmlFor="cmp-mode">Mode</label>
-          <select id="cmp-mode" value={mode} onChange={(event) => setMode(event.target.value)}>
+      <Panel
+        title="Genel"
+        actions={
+          <select value={mode} onChange={(event) => setMode(event.target.value)}>
             {MODES.map((item) => (
               <option key={item} value={item}>
-                {item}
+                {item === "paper" ? "Kağıt" : item === "live" ? "Gerçek" : "Backtest"}
               </option>
             ))}
           </select>
-        </div>
-      </div>
-
-      <Panel title="Overall" subtitle={"Trading mode: " + mode}>
+        }
+      >
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Strategy</th>
-                <th className="numeric">Trades</th>
-                <th className="numeric">Net PnL</th>
-                <th className="numeric">Win rate</th>
-                <th className="numeric">Profit factor</th>
-                <th className="numeric">Max DD</th>
-                <th className="numeric">Expectancy</th>
-                <th className="numeric">Max losses</th>
-                <th className="numeric">Costs</th>
+                <th>Strateji</th>
+                <th className="numeric">İşlem</th>
+                <th className="numeric">Net K/Z</th>
+                <th className="numeric">Kazanma</th>
+                <th className="numeric">Kâr faktörü</th>
+                <th className="numeric">Maks. düşüş</th>
+                <th className="numeric">Beklenti</th>
+                <th className="numeric">Üst üste zarar</th>
+                <th className="numeric">Maliyet</th>
               </tr>
             </thead>
             <tbody>
@@ -97,15 +88,15 @@ export function ComparisonPage() {
             <table>
               <thead>
                 <tr>
-                  <th>Strategy</th>
-                  <th className="numeric">Trades</th>
-                  <th className="numeric">Net PnL</th>
-                  <th className="numeric">Win rate</th>
-                  <th className="numeric">Profit factor</th>
-                  <th className="numeric">Max DD</th>
-                  <th className="numeric">Expectancy</th>
-                  <th className="numeric">Max losses</th>
-                  <th className="numeric">Costs</th>
+                  <th>Strateji</th>
+                  <th className="numeric">İşlem</th>
+                  <th className="numeric">Net K/Z</th>
+                  <th className="numeric">Kazanma</th>
+                  <th className="numeric">Kâr faktörü</th>
+                  <th className="numeric">Maks. düşüş</th>
+                  <th className="numeric">Beklenti</th>
+                  <th className="numeric">Üst üste zarar</th>
+                  <th className="numeric">Maliyet</th>
                 </tr>
               </thead>
               <tbody>

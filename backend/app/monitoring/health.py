@@ -40,7 +40,7 @@ def build_health_report(db: Session, raw: dict[str, Any]) -> dict[str, Any]:
         _component(
             "Market Data",
             market_status,
-            "Stale prices" if market.get("stale") else "Prices are fresh",
+            "Fiyatlar bayat" if market.get("stale") else "Fiyatlar güncel",
             data_age_seconds=market.get("data_age_seconds", {}),
         )
     )

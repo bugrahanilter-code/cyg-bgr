@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-export function Loading({ label = "Loading..." }: { label?: string }) {
+export function Loading({ label = "Yükleniyor…" }: { label?: string }) {
   return <div className="loading">{label}</div>;
 }
 

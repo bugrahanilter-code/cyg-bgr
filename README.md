@@ -61,23 +61,32 @@ live trading in two separate places.
 
 ### Markets
 
-The ten highest-volume Binance coins are created for you on first start:
+**Every USDT perpetual on Binance is available** — 525 markets at the time of
+writing. The **Markets** page lists all of them with live 24 hour statistics:
+price, change, high, low, where the price sits inside the 24 hour range, quote
+volume, the live bid/ask spread, ATR as a percentage of price, RSI, and
+TradingView's technical rating. Search, sort and filter by volume; click any row
+for the exchange rules, the cached candle history and a full TradingView chart.
 
-```
-BTC  ETH  SOL  XRP  BNB  DOGE  ZEC  HYPE  TRUMP  ENA   (all quoted in USDT)
-```
+Two states are deliberately kept apart:
 
-Only **BTC/USDT and ETH/USDT are enabled for trading** by default. Adding a
-market makes it available; switching it on is a separate tick in Settings,
-because every enabled market multiplies the work the engine does and the number
-of positions that can be opened.
+* **Available** — the market exists in the database and can be backtested.
+  *Markets -> Import every market* adds all of them in one action.
+* **Enabled** — the trading engine actually evaluates it every candle.
+  This is a separate click per market, because each enabled market adds one
+  strategy evaluation per candle and one more position the risk engine has to
+  supervise.
 
-The ranking is live: **Settings -> Add the 10 highest-volume coins** re-reads it
-from Binance. Tokenised stocks and commodities (Binance lists SanDisk, gold,
-SpaceX and others on the same venue) are filtered out on purpose — they follow
-stock-market hours and gap over weekends, which every strategy here would
-misread. Each coin appears once, so BTC/USDT and BTC/USDC never both get
-enabled and quietly double your exposure to one asset.
+Only **BTC/USDT and ETH/USDT are enabled for trading** on a fresh install.
+
+The most useful column is **round trip cost**: the taker fee in and out, the
+slippage in and out, plus the live spread. That is what a strategy has to earn
+on every single trade before it earns anything at all, and on most low-volume
+markets it is larger than any edge found so far.
+
+Tokenised stocks and commodity indices (Binance lists them on the same venue)
+are filtered out by default — they follow stock-market hours and gap over
+weekends, which every strategy here would misread.
 
 ## 2. How it works
 
@@ -253,6 +262,148 @@ Warning signs in a backtest: fewer than 30 trades, a profit factor above 3 with
 few trades, results that collapse when a parameter changes slightly, or a
 strategy that only works on one market.
 
+### Automatic rotation into the top movers
+
+The **Rotation** page ranks every tradable market by 24 hour change and makes the
+top N the enabled trading set, on a schedule (hourly by default).
+
+It ships **disabled and in dry run**, because it changes what the bot trades
+without being asked. Turn it on in two steps: enable it, watch a dry run, then
+clear the dry-run flag.
+
+Read this before switching it on:
+
+> Rotation is a **selection rule, not an edge**. A coin appears in the list
+> *because* it already rose 24%; nothing here predicts that it continues. Every
+> refresh also pays an exit on what leaves and an entry on what arrives, and
+> transaction cost is the one factor that has beaten every strategy studied on
+> this platform.
+
+Quality filters keep the list tradable rather than merely dramatic:
+
+| Filter | Default | Why |
+| --- | ---: | --- |
+| Minimum 24h volume | $50M | A coin that pumped on $2M cannot absorb an order |
+| Maximum spread | 0.15% | Paid on every entry and every exit |
+| Minimum listing age | 30 days | A coin listed last week has no history to backtest |
+| Ignore moves above | 100% | Usually a listing event, not a trend |
+| Cooldown after removal | 4 h | Stops a borderline coin thrashing in and out hourly |
+| Maximum removals per run | 10 | One volatile hour cannot flush the whole book |
+
+Three rules are not configurable:
+
+* **A market with an open position is never disabled.** It keeps its slot until
+  the position is flat, so the engine can still manage the exit. The run records
+  these as *held open*.
+* **Research-only markets can never be selected** (see the FX section below).
+* **Every rejection carries a reason**, stored with the run, so "why is this coin
+  not in the list" is answerable after the fact.
+
+### Choosing a strategy from a sweep
+
+*Matrix Backtest → select strategy* ranks every strategy/timeframe combination
+in a sweep. It is deliberately hard to please, because picking the best of 84
+combinations is the classic way to fool yourself: with that many draws the
+winner's backtest number is roughly a 99th percentile result even if every
+strategy is worthless.
+
+A combination has to clear four independent bars:
+
+1. **Enough trades** — 100 across markets, 20 on any market that counts.
+2. **Breadth, not one lucky market** — profitable on at least 55% of the markets
+   it was tested on, scored on the *median* market so one outlier cannot carry it.
+3. **Cost-aware** — median expectancy positive in R, after fees, spread and slippage.
+4. **Out of sample** — the winner is re-run on a window that was not used to
+   choose it. Applying it is blocked until that is acknowledged.
+
+`NO_QUALIFYING_COMBINATION` is a normal answer and is returned rather than the
+least bad row, because handing back the least bad row is exactly how a losing
+configuration ends up trading.
+
+### Reference markets: gold and the FX majors
+
+Four non-crypto markets are available alongside the coins. They exist as a
+**control**, not as trading targets:
+
+| Market | Source | Tradable | Round trip cost | Session |
+| --- | --- | --- | ---: | --- |
+| `XAU/USDT` | Binance perpetual | Yes | ~0.12% | 24/7 |
+| `PAXG/USDT` | Binance (gold-backed token) | Yes | ~0.12% | 24/7 |
+| `EUR/USD` | Yahoo Finance | **No** | ~0.02% | Mon 22:00 – Fri 22:00 UTC |
+| `USD/JPY` | Yahoo Finance | **No** | ~0.02% | Mon 22:00 – Fri 22:00 UTC |
+
+Every study on this platform has ended at the same wall: a small edge, eaten by
+transaction costs. FX changes exactly one variable — a EUR/USD round trip costs
+about six times less than a crypto perpetual. If a strategy is profitable there
+and negative on crypto, the problem is cost. If it loses on both, the strategy
+has no edge anywhere.
+
+**EUR/USD and USD/JPY cannot be traded.** Binance has no FX market, so no order
+could ever be filled. This is enforced in two places: the Risk Engine rejects
+any signal on them with `SYMBOL_NOT_TRADABLE`, and the order validator refuses
+them as a last check before anything leaves the process. The Markets page shows
+them as *backtest only* with no Enable button.
+
+Three traps worth knowing before reading any FX result:
+
+1. **No volume.** Spot FX has no central exchange and therefore no consolidated
+   volume — every bar reports zero. `vwap_pullback` is gated on volume and can
+   never fire there: its zero trades mean *could not run*, not *found nothing*.
+   Five more strategies (`adaptive_momentum`, `breakout_donchian`,
+   `keltner_trend`, `mean_reversion`, `volatility_breakout`) read volume as one
+   score component among several — they still trade, with that component
+   permanently zero. The market detail panel names both groups. This split was
+   measured, not assumed: every strategy was run twice over identical prices,
+   once with volume and once with it zeroed.
+2. **Weekend gaps.** The market closes on Friday and reopens on Sunday. Every
+   strategy here assumes a continuous stream and reads the gap as an ordinary
+   bar.
+3. **Short intraday history.** Yahoo caps intraday data: 60 days below one hour,
+   730 days at one hour, years at daily. A 15m FX sweep therefore covers two
+   months whatever date range is requested.
+
+Gold has none of these problems: `XAU/USDT` is a real Binance perpetual that
+trades 24/7 with real volume and real Binance costs. It was listed in December
+2025, so there is under a year of history.
+
+### Testing everything at once (Matrix Backtest)
+
+The **Matrix Backtest** page runs every selected strategy against every selected
+market on every selected timeframe and stores one metric row per combination.
+
+Press **Estimate the cost** before starting anything large. The work is not
+proportional to the number of combinations, it is proportional to the number of
+*candles* in them, and low timeframes dominate everything else:
+
+| Grid | Backtests | CPU time | Candle storage |
+| --- | ---: | ---: | ---: |
+| 14 strategies x 30 markets x 6 timeframes x 12 months | 2,520 | ~53 min | 1.4 GB |
+| 14 strategies x 50 markets x 6 timeframes x 12 months | 4,200 | ~1.5 h | 2.3 GB |
+| 14 strategies x 523 markets x 6 timeframes x 12 months | 43,932 | ~15 h | 24 GB |
+| **14 strategies x 523 markets x all 14 timeframes x 24 months** | **102,508** | **~397 h (16 days)** | **628 GB** |
+
+The last row is what "every strategy on every coin on every timeframe" literally
+means. It is not forbidden — the page will run it — but it is sixteen days of
+uninterrupted CPU and 628 GB of candles, and roughly three quarters of that cost
+comes from the 1m and 3m rows alone. Those are also precisely where transaction
+costs have beaten the edge in every study run on this platform so far.
+
+Results come back in three parts:
+
+1. **What the grid says** — how many cells were profitable, how many beat simply
+   holding the coin, and the average expectancy in R.
+2. **Where does the edge survive?** — a strategy x timeframe heatmap. Green means
+   the average cell earned more than it paid in costs; red means it did not.
+3. **Every result** — the full table, filterable and sortable, with each cell's
+   return next to the buy-and-hold return of the same coin over the same window.
+
+Only cells with at least 20 trades are counted in the summary. A handful of
+trades can show any number at all and mean nothing.
+
+Sweeps store metrics only, not equity curves or trade lists — thousands of runs
+would add gigabytes nobody reads. Every cell is reproducible: re-run an
+interesting one in the Backtest Lab with the same settings to see it in full.
+
 ## 10. How to start paper trading
 
 Paper trading is the default. After `docker compose up` the platform is already
@@ -317,19 +468,67 @@ minimum notional).
 When the daily target is reached the bot stops opening new trades and keeps
 managing the open ones. It never increases risk to reach a target.
 
+### Stop loss and take profit
+
+Both are set in **Risk Settings**, and both are decided by one shared function
+that the backtester and the live engine call. That matters: a rule changed here
+moves the simulation and the real orders together, so a backtest keeps meaning
+something.
+
+**Stop loss** has three modes. The default, *strategy*, leaves each strategy's
+own (usually ATR-based) stop alone. *Fixed* overrides every strategy with one
+percentage. *Bounded* keeps the strategy's choice but clamps it. The
+minimum/maximum band applies in every mode except *fixed* as a safety envelope —
+a strategy asking for a 40% stop is a bug, not a choice.
+
+Position size is calculated from the **decided** stop, so widening a stop
+produces a *smaller* position, never more money at risk.
+
+**Take profit** has four modes: *strategy*, *fixed percentage*, *risk multiple*
+(2R means a target twice as far as the stop, and it follows a stop that was
+widened or tightened), and *none*.
+
+> **Measured on this platform:** removing the take profit improved expectancy in
+> **70 of 93** paired tests — the same strategy, market and timeframe with only
+> that one setting changed, across 6 strategies, 8 markets and 2 timeframes over
+> 12 months. Median expectancy went from **+0.048R to +0.132R per trade**.
+>
+> The mechanism is the one trend traders describe: these systems earn from a few
+> large winners that pay for many small losses, and a fixed target cuts exactly
+> those winners short. The win rate *falls* when you remove it, which is why it
+> looks wrong on a dashboard and is right on the equity curve.
+>
+> This is one year and one cost model, so treat it as a strong hypothesis rather
+> than a settled fact — but it is a structural change verified across 93
+> independent cells, which is far better evidence than picking the best of 74
+> strategy/timeframe combinations.
+
+**Trailing stop and break-even** are also here. A stop only ever moves toward
+profit; loosening one is not possible. Both are off by default, and both cost
+something: in the same test, trailing at 2% from 1R and moving to break-even at
+1R each made results *worse* on BTC/USDT, because they convert winners into
+scratches. They are tools, not free improvements.
+
+**Minimum reward/risk** rejects an entry whose target is too close to its stop.
+Off by default.
+
 ## 13. The dashboard
 
 | Page | Contents |
 | --- | --- |
-| **Overview** | Status, balance, PnL (daily/weekly/monthly), drawdown, daily target progress, open positions, recent trades, equity curve |
-| **Positions** | Size, entry, price, stop, target, leverage, margin, liquidation price, unrealised PnL, close buttons |
-| **Trades** | Full journal with filters (date, market, strategy, direction, win/loss, paper/live/backtest) |
-| **Strategies** | Enable/disable, current signal, confidence, regime, parameters, performance per strategy |
-| **Comparison** | Every strategy side by side, overall and per market |
-| **Backtest Lab** | Run backtests and walk-forward analysis, view charts and metrics |
-| **Risk Settings** | Every risk limit |
-| **System** | Health of each component, heartbeat, engine control, event log |
-| **Settings** | Binance API, markets, timeframes, strategies, live trading, paper reset |
+| **Genel Bakış** (Overview) | Balance, PnL, drawdown, daily target, equity curve, open positions, recent trades, account reset |
+| **Piyasalar** (Markets) | All 525 Binance markets with 24 hour statistics, search and sort, TradingView charts, enable/disable |
+| **İşlemler** (Activity) | Open positions and the full trade journal, as two tabs of one page |
+| **Stratejiler** (Strategies) | Enable/disable and tune each strategy, plus the side-by-side comparison |
+| **Test** | One backtest in depth, or the whole strategy x market x timeframe grid, as two tabs |
+| **Otomasyon** (Rotation) | Automatically enable the top 24 hour movers on a schedule, with quality filters and an audit trail |
+| **Risk** | Position sizing, leverage band, stop loss, take profit, trailing, daily limits, market quality filters |
+| **Sistem** (System) | Health of each component, heartbeat, engine control, event log |
+| **Ayarlar** (Settings) | Binance API, markets, timeframes, live trading switch, paper account reset |
+
+The interface is in Turkish. Nine destinations are grouped into three sections
+(**İzle** / **Strateji** / **Yönet**) rather than listed flat, and pages that
+show one subject at two scales share a route with a tab strip.
 
 ## 14. Adding a new strategy
 
@@ -449,6 +648,18 @@ Details: [CONTRIBUTING.md](CONTRIBUTING.md).
 * `.env` is gitignored; CI fails if a `.env` file is ever committed.
 
 Full details: [docs/security.md](docs/security.md).
+
+### Where the data comes from
+
+Candles for strategies and backtests come from **Binance** and only from Binance:
+the series a backtest runs on has to be the series the execution engine will be
+filled against. **TradingView** supplies screener context (technical rating, RSI,
+ATR, relative volume) shown on the Markets page, and the chart widget. No
+TradingView value is ever read by a strategy, a risk check or an order.
+
+The backend also serves a TradingView-compatible UDF datafeed at `/api/udf`, so
+their Advanced Charts library can render our own candles when it is added.
+Full reasoning: [docs/tradingview-integration.md](docs/tradingview-integration.md).
 
 ## 20. Emergency stop
 

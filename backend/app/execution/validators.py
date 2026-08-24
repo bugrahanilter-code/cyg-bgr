@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 
 from app.core.constants import OrderType
 from app.exchange.filters import SymbolFilters
+from app.market_data import reference_markets
 
 
 @dataclass(slots=True)
@@ -45,6 +46,12 @@ def validate_order(
 
     if not symbol:
         result.fail("Symbol is missing")
+    # Second line of defence. The Risk Engine already rejects research-only
+    # markets, but this is the last point before an order leaves the process,
+    # and "no exchange can fill this" is not a rule worth trusting to one check.
+    elif not reference_markets.is_tradable(symbol):
+        result.fail(f"{symbol} is a research-only market and cannot be ordered")
+        return result
     if quantity is None or quantity <= 0:
         result.fail("Quantity must be greater than zero")
         return result

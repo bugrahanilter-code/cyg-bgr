@@ -20,71 +20,151 @@ interface FieldSpec {
 const PER_TRADE: FieldSpec[] = [
   {
     key: "risk_per_trade_pct",
-    label: "Risk per trade (%)",
-    hint: "Share of equity risked if the stop loss is hit. 0.5 is conservative.",
+    label: "İşlem başına risk (%)",
+    hint: "Stop olursa riske giren varlık oranı. 0,5 muhafazakârdır.",
     step: 0.1,
     min: 0.05,
     max: 10,
   },
   {
     key: "max_position_notional_pct",
-    label: "Max position size (% of equity)",
-    hint: "Upper bound on a single position value, before leverage.",
+    label: "Maks. pozisyon (varlığın %'si)",
+    hint: "Tek pozisyonun kaldıraç öncesi üst sınırı.",
     step: 5,
   },
   {
     key: "max_total_exposure_pct",
-    label: "Max total exposure (%)",
-    hint: "Combined value of every open position.",
+    label: "Maks. toplam maruziyet (%)",
+    hint: "Tüm açık pozisyonların toplam değeri.",
     step: 10,
   },
-  { key: "max_leverage", label: "Max leverage", hint: "Hard cap applied to every order.", step: 1, min: 1, max: 25 },
+  {
+    key: "min_leverage",
+    label: "Minimum kaldıraç",
+    hint: "Her emre uygulanan taban. Borsa sınırı daha düşük olan markette, borsanın izin verdiği değer kullanılır; asla üstü değil.",
+    step: 1,
+    min: 1,
+    max: 25,
+  },
+  { key: "max_leverage", label: "Maksimum kaldıraç", hint: "Her emre uygulanan katı üst sınır.", step: 1, min: 1, max: 25 },
   {
     key: "margin_buffer_pct",
-    label: "Usable margin (%)",
-    hint: "Share of the free balance the platform may use as margin.",
+    label: "Kullanılabilir teminat (%)",
+    hint: "Serbest bakiyenin teminat olarak kullanılabilecek kısmı.",
     step: 5,
+  },
+];
+
+const STOP_FIELDS: FieldSpec[] = [
+  {
+    key: "stop_loss_pct",
+    label: "Stop distance (%)",
+    hint: "Mod Sabit iken kullanılır; ayrıca bir strateji stopsuz sinyal ürettiğinde yedek olarak devreye girer.",
+    step: 0.1,
+    min: 0.1,
+  },
+  {
+    key: "min_stop_distance_pct",
+    label: "Minimum stop distance (%)",
+    hint: "Sabit dışındaki her modda uygulanan güvenlik tabanı. 0 devre dışı bırakır.",
+    step: 0.1,
+    min: 0,
+  },
+  {
+    key: "max_stop_distance_pct",
+    label: "Maximum stop distance (%)",
+    hint: "Güvenlik tavanı. %40 stop isteyen strateji hata yapıyordur, tercih değil. 0 devre dışı bırakır.",
+    step: 0.5,
+    min: 0,
+  },
+];
+
+const TARGET_FIELDS: FieldSpec[] = [
+  {
+    key: "take_profit_pct",
+    label: "Target distance (%)",
+    hint: "Mod Sabit yüzde iken kullanılır.",
+    step: 0.1,
+    min: 0.1,
+  },
+  {
+    key: "take_profit_r_multiple",
+    label: "Target in R",
+    hint: "Mod R katı iken kullanılır. 2, stopun iki katı uzaklıkta hedef demektir.",
+    step: 0.1,
+    min: 0.1,
+  },
+  {
+    key: "min_risk_reward",
+    label: "Minimum reward/risk",
+    hint: "Hedefi stopuna göre fazla yakın olan girişleri reddeder. 0 kontrolü kapatır.",
+    step: 0.1,
+    min: 0,
+  },
+];
+
+const TRAIL_FIELDS: FieldSpec[] = [
+  {
+    key: "trailing_stop_pct",
+    label: "Trail distance (%)",
+    hint: "Stopun en iyi fiyatı hangi mesafeden takip edeceği. Stratejinin kendi ATR takibi yoksa kullanılır.",
+    step: 0.1,
+    min: 0.1,
+  },
+  {
+    key: "trailing_start_r",
+    label: "Start trailing at (R)",
+    hint: "Takibe ancak işlem bu kadar kâra geçince başlar. 0, ilk mumdan itibaren takip eder.",
+    step: 0.1,
+    min: 0,
+  },
+  {
+    key: "break_even_at_r",
+    label: "Break even at (R)",
+    hint: "İşlem bu kadar öne geçtiğinde stopu girişe çeker. 0 kapatır. Riski kaldırır ama bazı kârlı işlemleri başabaşa çevirir.",
+    step: 0.1,
+    min: 0,
   },
 ];
 
 const DAILY: FieldSpec[] = [
   {
     key: "daily_profit_target_pct",
-    label: "Daily profit target (%)",
+    label: "Günlük kâr hedefi (%)",
     hint: "When reached, the bot stops opening new trades for the day.",
     step: 0.25,
   },
   {
     key: "daily_loss_limit_pct",
-    label: "Daily loss limit (%)",
+    label: "Günlük zarar limiti (%)",
     hint: "When reached, the platform goes into safe mode for the day.",
     step: 0.25,
   },
-  { key: "max_trades_per_day", label: "Max trades per day", hint: "Overtrading protection.", step: 1 },
+  { key: "max_trades_per_day", label: "Günlük maks. işlem", hint: "Overtrading protection.", step: 1 },
 ];
 
 const STREAKS: FieldSpec[] = [
   {
     key: "max_consecutive_losses",
-    label: "Max consecutive losses",
+    label: "Üst üste maks. zarar",
     hint: "Trading pauses after this many losing trades in a row.",
     step: 1,
   },
   {
     key: "cooldown_minutes",
-    label: "Cooldown (minutes)",
+    label: "Bekleme süresi (dakika)",
     hint: "Waiting time after a loss before a new entry is allowed.",
     step: 5,
   },
   {
     key: "max_drawdown_pct",
-    label: "Max drawdown (%)",
+    label: "Maksimum düşüş (%)",
     hint: "Trading stops when equity falls this far below its peak.",
     step: 1,
   },
   {
     key: "max_concurrent_positions",
-    label: "Max concurrent positions",
+    label: "Eşzamanlı maks. pozisyon",
     hint: "How many positions may be open at the same time.",
     step: 1,
   },
@@ -101,7 +181,7 @@ const QUALITY: FieldSpec[] = [
   },
   {
     key: "max_spread_pct",
-    label: "Max spread (%)",
+    label: "Maksimum spread (%)",
     hint: "Orders are refused when the bid/ask spread is wider than this.",
     step: 0.01,
   },
@@ -124,7 +204,7 @@ export function RiskSettingsPage() {
     (payload: RiskConfig) => riskService.update(payload),
     [["risk"], ["overview"], ["settings"]],
     {
-      onSuccess: () => pushToast("Risk settings saved", "success"),
+      onSuccess: () => pushToast("Risk ayarları kaydedildi", "success"),
       onError: (mutationError) => pushToast(mutationError.message, "error"),
     },
   );
@@ -133,7 +213,7 @@ export function RiskSettingsPage() {
     return error ? <ErrorState error={error} /> : <Loading />;
   }
 
-  function setValue(key: keyof RiskConfig, value: number | boolean) {
+  function setValue(key: keyof RiskConfig, value: number | boolean | string) {
     setConfig((current) => (current ? { ...current, [key]: value } : current));
   }
 
@@ -163,10 +243,10 @@ export function RiskSettingsPage() {
     <>
       <div className="page-header">
         <div>
-          <h1>Risk settings</h1>
+          <h1>Risk</h1>
           <p>
-            The Risk Engine can veto any strategy signal. These limits are the safety envelope
-            of the whole platform; the defaults are deliberately conservative.
+            Risk Motoru her strateji sinyalini veto edebilir. Bu limitler tüm platformun
+            güvenlik zarfıdır; varsayılanlar bilinçli olarak muhafazakârdır.
           </p>
         </div>
         <button
@@ -175,31 +255,102 @@ export function RiskSettingsPage() {
           disabled={save.isPending}
           onClick={() => config && save.mutate(config)}
         >
-          Save risk settings
+          Risk ayarlarını kaydet
         </button>
       </div>
 
       <Banner tone="info">
-        Increasing risk does not increase expected profit; it increases the size of the losses
-        you will eventually take. The bot never raises risk on its own to reach the daily
-        target.
+        Riski artırmak beklenen kârı artırmaz; er geç alacağınız zararın boyutunu artırır.
+        Bot, günlük hedefe ulaşmak için kendiliğinden risk artırmaz.
       </Banner>
 
-      <Panel title="Per trade">{renderFields(PER_TRADE)}</Panel>
-      <Panel title="Daily limits">{renderFields(DAILY)}</Panel>
-      <Panel title="Losing streaks and drawdown">{renderFields(STREAKS)}</Panel>
-      <Panel title="Market quality filters">
+      <Panel title="İşlem başına">{renderFields(PER_TRADE)}</Panel>
+
+      <Panel
+        title="Zarar durdur (stop)"
+        subtitle="İşlemin kesildiği yer. Pozisyon büyüklüğü bu mesafeden hesaplanır: geniş stop daha küçük pozisyon demektir, daha çok risk değil."
+      >
+        <div className="field">
+          <label htmlFor="stop_loss_mode">Mode</label>
+          <select
+            id="stop_loss_mode"
+            value={config.stop_loss_mode}
+            onChange={(event) => setValue("stop_loss_mode", event.target.value)}
+          >
+            <option value="strategy">Use the strategy&apos;s own stop</option>
+            <option value="fixed_pct">Fixed percentage from entry</option>
+            <option value="bounded">Strategy stop, clamped into the band below</option>
+          </select>
+          <small>
+            {config.stop_loss_mode === "strategy"
+              ? "Her strateji kendi stopunu koyar, genelde ATR ile. Aşağıdaki bant yine güvenlik zarfı olarak uygulanır."
+              : config.stop_loss_mode === "fixed_pct"
+                ? "Strateji ne önerirse önersin her işlem aynı stop mesafesini kullanır."
+                : "Strateji seçer, ama sonuç minimum ve maksimumun içine zorlanır."}
+          </small>
+        </div>
+        {renderFields(STOP_FIELDS)}
+      </Panel>
+
+      <Panel
+        title="Kâr al (hedef)"
+        subtitle="İşlemin kârla kapatıldığı yer."
+      >
+        <div className="field">
+          <label htmlFor="take_profit_mode">Mode</label>
+          <select
+            id="take_profit_mode"
+            value={config.take_profit_mode}
+            onChange={(event) => setValue("take_profit_mode", event.target.value)}
+          >
+            <option value="strategy">Use the strategy&apos;s own target</option>
+            <option value="fixed_pct">Fixed percentage from entry</option>
+            <option value="risk_multiple">Multiple of the risk taken (R)</option>
+            <option value="none">No target: exit on the stop or a signal</option>
+          </select>
+          <small>
+            {config.take_profit_mode === "none"
+              ? "Trend sistemleri genelde birkaç büyük kazançtan para kazanır. Sabit hedef tam onları keser; kaldırmak getiriyi artırıp kazanma oranını düşürebilir."
+              : config.take_profit_mode === "risk_multiple"
+                ? "Hedef, gerçekten kullanılan stoptan ölçülür; genişletilen veya daraltılan stopu takip eder."
+                : "Strateji ne önerirse önersin her işleme uygulanır."}
+          </small>
+        </div>
+        {renderFields(TARGET_FIELDS)}
+      </Panel>
+
+      <Panel
+        title="Takip eden stop ve başabaş"
+        subtitle="Stop yalnızca kâr yönünde hareket eder, asla gevşetilmez."
+      >
+        <div className="field">
+          <label>Trailing stop</label>
+          <Toggle
+            checked={config.trailing_stop_enabled}
+            onChange={(value) => setValue("trailing_stop_enabled", value)}
+            label={config.trailing_stop_enabled ? "On" : "Off"}
+          />
+          <small>
+            A strategy that supplies its own ATR trail keeps it; this is the fallback
+            for the ones that do not.
+          </small>
+        </div>
+        {renderFields(TRAIL_FIELDS)}
+      </Panel>
+      <Panel title="Günlük limitler">{renderFields(DAILY)}</Panel>
+      <Panel title="Zarar serisi ve düşüş">{renderFields(STREAKS)}</Panel>
+      <Panel title="Piyasa kalite filtreleri">
         {renderFields(QUALITY)}
         <div className="grid grid-3" style={{ marginTop: 10 }}>
           <div className="field">
-            <label>One position per symbol</label>
+            <label>Market başına tek pozisyon</label>
             <Toggle
               checked={config.one_position_per_symbol}
               onChange={(value) => setValue("one_position_per_symbol", value)}
             />
           </div>
           <div className="field">
-            <label>Block on extreme volatility</label>
+            <label>Aşırı oynaklıkta engelle</label>
             <Toggle
               checked={config.block_on_extreme_volatility}
               onChange={(value) => setValue("block_on_extreme_volatility", value)}
@@ -223,7 +374,7 @@ export function RiskSettingsPage() {
           disabled={save.isPending}
           onClick={() => config && save.mutate(config)}
         >
-          Save risk settings
+          Risk ayarlarını kaydet
         </button>
         <button
           type="button"

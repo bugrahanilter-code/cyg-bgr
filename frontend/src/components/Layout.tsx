@@ -10,16 +10,36 @@ import { useAppState } from "@/state/appStateContext";
 import { formatAgo } from "@/utils/format";
 import { useState } from "react";
 
-const NAV_ITEMS = [
-  { to: "/", label: "Overview", icon: "OV", end: true },
-  { to: "/positions", label: "Positions", icon: "PO" },
-  { to: "/trades", label: "Trades", icon: "TR" },
-  { to: "/strategies", label: "Strategies", icon: "ST" },
-  { to: "/comparison", label: "Comparison", icon: "CM" },
-  { to: "/backtest", label: "Backtest Lab", icon: "BT" },
-  { to: "/risk", label: "Risk Settings", icon: "RK" },
-  { to: "/system", label: "System", icon: "SY" },
-  { to: "/settings", label: "Settings", icon: "SE" },
+/**
+ * Nine destinations grouped into three. A flat list of nine is a wall; three
+ * groups of three are scannable, and the grouping itself explains what the
+ * platform does: watch it, shape it, configure it.
+ */
+const NAV_GROUPS = [
+  {
+    label: "İzle",
+    items: [
+      { to: "/", label: "Genel Bakış", icon: "◎", end: true },
+      { to: "/markets", label: "Piyasalar", icon: "◈" },
+      { to: "/trades", label: "İşlemler", icon: "⇄" },
+    ],
+  },
+  {
+    label: "Strateji",
+    items: [
+      { to: "/strategies", label: "Stratejiler", icon: "◇" },
+      { to: "/backtest", label: "Test", icon: "◔" },
+      { to: "/rotation", label: "Otomasyon", icon: "⟳" },
+    ],
+  },
+  {
+    label: "Yönet",
+    items: [
+      { to: "/risk", label: "Risk", icon: "△" },
+      { to: "/system", label: "Sistem", icon: "◍" },
+      { to: "/settings", label: "Ayarlar", icon: "⚙" },
+    ],
+  },
 ];
 
 function modeTone(mode: string) {
@@ -60,23 +80,28 @@ export function Layout() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <strong>Crypto Trading</strong>
-          <span>Local platform</span>
+          <strong>Kripto Terminal</strong>
+          <span>Yerel platform</span>
         </div>
-        {NAV_ITEMS.map((item) => (
-          <NavLink
-            key={item.to}
-            to={item.to}
-            end={item.end}
-            className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
-          >
-            <span className="nav-icon">{item.icon}</span>
-            {item.label}
-          </NavLink>
+        {NAV_GROUPS.map((group) => (
+          <div key={group.label}>
+            <div className="nav-group">{group.label}</div>
+            {group.items.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                className={({ isActive }) => (isActive ? "nav-link active" : "nav-link")}
+              >
+                <span className="nav-icon">{item.icon}</span>
+                {item.label}
+              </NavLink>
+            ))}
+          </div>
         ))}
         <div className="spacer" />
         <div className="disclaimer" style={{ padding: "0 10px" }}>
-          This software gives no profit guarantee. Trade at your own risk.
+          Bu yazılım kâr garantisi vermez. Sorumluluk size aittir.
         </div>
       </aside>
 
@@ -84,35 +109,35 @@ export function Layout() {
         <header className="topbar">
           <div className="topbar-group">
             <Badge tone={modeTone(bot?.mode ?? "paper")}>
-              {(bot?.mode ?? "paper").toUpperCase()} MODE
+              {bot?.mode === "live" ? "GERÇEK PARA" : "KAĞIT"}
             </Badge>
             <span className="row small">
               <StatusDot status={engineRunning ? "OK" : "DOWN"} />
-              Engine {engineRunning ? "running" : "stopped"}
+              {engineRunning ? "Motor çalışıyor" : "Motor durdu"}
             </span>
             <span className="row small">
               <StatusDot status={bot?.reconciliation_status ?? "UNKNOWN"} />
-              Reconciliation
+              Mutabakat
             </span>
             <span className="small muted">
-              Heartbeat {formatAgo(bot?.last_heartbeat ?? null)}
+              Son sinyal {formatAgo(bot?.last_heartbeat ?? null)}
             </span>
           </div>
 
           <div className="topbar-group">
             {bot?.emergency_stop_level && bot.emergency_stop_level !== "NONE" && (
-              <Badge tone="danger">STOP: {bot.emergency_stop_level}</Badge>
+              <Badge tone="danger">DURDURULDU</Badge>
             )}
-            {bot?.live_trading_confirmed && <Badge tone="danger">LIVE ORDERS ENABLED</Badge>}
+            {bot?.live_trading_confirmed && <Badge tone="danger">GERÇEK EMİR AÇIK</Badge>}
             {engineRunning ? (
               <button
                 type="button"
                 className="btn btn-sm"
                 disabled={stopEngine.isPending}
                 onClick={() => stopEngine.mutate(undefined)}
-                title="Stops the trading engine. Open positions are left untouched."
+                title="Motoru durdurur. Açık pozisyonlara dokunulmaz."
               >
-                {stopEngine.isPending ? "Stopping..." : "STOP BOT"}
+                {stopEngine.isPending ? "Durduruluyor…" : "Durdur"}
               </button>
             ) : (
               <button
@@ -120,9 +145,9 @@ export function Layout() {
                 className="btn btn-success btn-sm"
                 disabled={startEngine.isPending}
                 onClick={() => startEngine.mutate(undefined)}
-                title="Starts the trading engine in the current mode."
+                title="Motoru mevcut modda başlatır."
               >
-                {startEngine.isPending ? "Starting..." : "START BOT"}
+                {startEngine.isPending ? "Başlatılıyor…" : "Başlat"}
               </button>
             )}
             <button
@@ -130,7 +155,7 @@ export function Layout() {
               className="btn btn-danger btn-sm"
               onClick={() => setStopOpen(true)}
             >
-              EMERGENCY STOP
+              Acil Durdur
             </button>
           </div>
         </header>
@@ -140,7 +165,7 @@ export function Layout() {
         </main>
       </div>
 
-      <Modal open={stopOpen} title="Emergency stop" onClose={() => setStopOpen(false)}>
+      <Modal open={stopOpen} title="Acil durdurma" onClose={() => setStopOpen(false)}>
         <EmergencyStopPanel currentLevel={bot?.emergency_stop_level ?? "NONE"} />
       </Modal>
 

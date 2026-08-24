@@ -38,6 +38,7 @@ from app.execution.idempotency import build_client_order_id
 from app.execution.validators import validate_order
 from app.models.trading import Order, Position
 from app.portfolio.engine import PortfolioEngine
+from app.risk.exit_policy import ExitLevels
 from app.risk.position_sizing import PositionSizing
 from app.services.event_service import log_event
 from app.signals.models import StrategySignal
@@ -91,8 +92,17 @@ class ExecutionEngine:
         leverage: float,
         timeframe: str = "",
         signal_row_id: int | None = None,
+        exits: ExitLevels | None = None,
     ) -> Position | None:
-        """Open a position for an approved signal."""
+        """Open a position for an approved signal.
+
+        ``exits`` carries the levels the Risk Engine decided. They replace what
+        the strategy proposed, because the risk configuration may have widened,
+        tightened or removed them, and the position has to be opened with the
+        levels its size was calculated from. It is passed as an object rather
+        than two floats so that "no take profit" stays distinguishable from
+        "no opinion" - a None target is a decision, not a missing value.
+        """
         self._assert_allowed()
         side = OrderSide.BUY if signal.signal == SignalType.LONG else OrderSide.SELL
         position_side = (
@@ -152,8 +162,8 @@ class ExecutionEngine:
             side=position_side,
             quantity=quantity,
             entry_price=fill_price,
-            stop_loss=signal.stop_loss,
-            take_profit=signal.take_profit,
+            stop_loss=exits.stop_loss if exits is not None else signal.stop_loss,
+            take_profit=exits.take_profit if exits is not None else signal.take_profit,
             leverage=leverage,
             margin=notional / max(leverage, 1.0),
             strategy_key=signal.strategy_key,
@@ -182,8 +192,15 @@ class ExecutionEngine:
         reason: ExitReason,
         price_hint: float | None = None,
         timeframe: str = "",
+        quantity: float | None = None,
     ):
-        """Close a position with a reduce-only market order."""
+        """Close a position, or part of one, with a reduce-only market order.
+
+        ``quantity`` closes only that much and leaves the rest open. It is
+        rounded to the exchange step size first, because an order the exchange
+        rejects for precision would leave the position untouched while the
+        caller believes it shrank.
+        """
         self._assert_allowed()
         side = OrderSide.SELL if position.side == PositionSide.LONG.value else OrderSide.BUY
         filters = self.filters_provider(position.symbol)
@@ -197,7 +214,18 @@ class ExecutionEngine:
             nonce=position.uid,
         )
 
-        if self.mode == TradingMode.LIVE:
+        open_quantity = float(position.quantity)
+        close_quantity = open_quantity
+        if quantity is not None:
+            close_quantity = filters.round_quantity(min(abs(float(quantity)), open_quantity))
+            if close_quantity <= 0 or not filters.is_valid_quantity(close_quantity):
+                raise OrderValidationError(
+                    f"{close_quantity} is below the minimum tradable size for "
+                    f"{position.symbol} ({filters.min_quantity})"
+                )
+        is_partial = close_quantity < open_quantity
+
+        if self.mode == TradingMode.LIVE and not is_partial:
             await self.cancel_protective_orders(db, position)
 
         order_row, exchange_order = await self._submit(
@@ -205,7 +233,7 @@ class ExecutionEngine:
             symbol=position.symbol,
             side=side,
             order_type=OrderType.MARKET,
-            quantity=float(position.quantity),
+            quantity=close_quantity,
             price=None,
             stop_price=None,
             reduce_only=True,
@@ -229,12 +257,25 @@ class ExecutionEngine:
             return None
 
         exit_price = exchange_order.average_price or price_hint or float(position.entry_price)
-        exit_notional = exit_price * float(position.quantity)
+        exit_notional = exit_price * close_quantity
         exit_fee = exchange_order.fee or exit_notional * self.taker_fee_pct / 100.0
-        slippage = abs(exit_price - (price_hint or exit_price)) * float(position.quantity)
+        slippage = abs(exit_price - (price_hint or exit_price)) * close_quantity
 
         order_row.position_id = position.id
         db.commit()
+
+        if is_partial:
+            return self.portfolio.reduce_position(
+                db,
+                position,
+                quantity=close_quantity,
+                exit_price=exit_price,
+                exit_reason=reason,
+                exit_fees=exit_fee,
+                slippage_cost=slippage,
+                exit_order_id=client_order_id,
+                timeframe=timeframe,
+            )
 
         trade = self.portfolio.close_position(
             db,

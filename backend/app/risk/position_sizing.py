@@ -71,6 +71,37 @@ def estimate_liquidation_price(
     return entry_price * (1.0 + initial_margin_rate - maintenance_margin_rate)
 
 
+def max_safe_leverage(
+    stop_distance_pct: float,
+    maintenance_margin_rate: float = 0.005,
+    buffer: float = 1.25,
+) -> float:
+    """Highest leverage at which the stop is still reached before liquidation.
+
+    Leverage does not move a stop: a stop is a price, and a price does not care
+    how much margin was posted. What leverage moves is the *liquidation* price,
+    and it moves it toward the entry. At 20x liquidation sits about 4.5% away,
+    so a 6% stop can never be reached - the exchange closes the position first
+    and takes the whole margin instead of the amount that was meant to be
+    risked.
+
+    Nothing in the sizing formula needs high leverage: quantity comes from the
+    risk budget divided by the stop distance. Leverage only decides how much
+    margin is posted for that quantity. So when a stop is too wide for the
+    requested leverage, lowering the leverage is free - the position size, the
+    entry and the risk at the stop are all unchanged.
+
+    ``buffer`` keeps a margin of safety between the stop and liquidation, so a
+    stop is not merely reachable in theory but comfortably before the wick that
+    would trigger liquidation.
+    """
+    distance = max(stop_distance_pct, 1e-9) / 100.0
+    denominator = distance * buffer + maintenance_margin_rate
+    if denominator <= 0:
+        return 1.0
+    return max(1.0, 1.0 / denominator)
+
+
 def calculate_position_size(
     *,
     equity: float,

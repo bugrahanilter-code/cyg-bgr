@@ -65,12 +65,12 @@ class DonchianBreakoutStrategy(BaseStrategy):
     """Channel breakout with volume, trend and volatility filters."""
 
     key = "breakout_donchian"
-    name = "Donchian Channel Breakout"
+    name = "Donchian Kanal Kırılımı"
     family = "breakout"
     risk_level = RiskLevel.MEDIUM
     description = (
-        "Buys new N-bar highs and sells new N-bar lows, filtered by volume, "
-        "trend and volatility. Suffers from false breakouts in ranging markets."
+        "N mumluk yeni zirveleri alır, yeni dipleri satar; hacim, trend ve oynaklık "
+        "filtreleriyle. Yatay piyasada yanlış kırılımlardan zarar görür."
     )
     params_model = BreakoutParams
 

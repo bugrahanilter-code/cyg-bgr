@@ -28,7 +28,7 @@ export function SystemMonitorPage() {
     return <Loading />;
   }
   if (health.error) {
-    return <ErrorState error={health.error} hint="The backend may be down." />;
+    return <ErrorState error={health.error} hint="Arka uç çalışmıyor olabilir." />;
   }
 
   const report = health.data;
@@ -38,8 +38,8 @@ export function SystemMonitorPage() {
     <>
       <div className="page-header">
         <div>
-          <h1>System monitoring</h1>
-          <p>Health of every component, the heartbeat and the structured event log.</p>
+          <h1>Sistem</h1>
+          <p>Her bileşenin sağlığı, kalp atışı ve yapılandırılmış olay kaydı.</p>
         </div>
         <div className="btn-row">
           <button
@@ -48,7 +48,7 @@ export function SystemMonitorPage() {
             disabled={engineRunning || start.isPending}
             onClick={() => start.mutate(undefined)}
           >
-            Start engine
+            Motoru başlat
           </button>
           <button
             type="button"
@@ -56,7 +56,7 @@ export function SystemMonitorPage() {
             disabled={!engineRunning || stop.isPending}
             onClick={() => stop.mutate(undefined)}
           >
-            Stop engine
+            Motoru durdur
           </button>
         </div>
       </div>
@@ -86,27 +86,27 @@ export function SystemMonitorPage() {
       <Panel title="Engine">
         <div className="grid grid-3">
           <div className="definition">
-            <span>Status</span>
+            <span>Durum</span>
             <span>{report?.bot_status}</span>
           </div>
           <div className="definition">
-            <span>Mode</span>
+            <span>Mod</span>
             <span>{report?.mode}</span>
           </div>
           <div className="definition">
-            <span>Emergency stop</span>
+            <span>Acil durdurma</span>
             <span>{report?.emergency_stop_level}</span>
           </div>
           <div className="definition">
-            <span>Live orders</span>
-            <span>{report?.live_trading_confirmed ? "ENABLED" : "disabled"}</span>
+            <span>Gerçek emirler</span>
+            <span>{report?.live_trading_confirmed ? "ENABLED" : "kapalı"}</span>
           </div>
           <div className="definition">
-            <span>Last heartbeat</span>
+            <span>Son kalp atışı</span>
             <span>{formatAgo(report?.last_heartbeat ?? null)}</span>
           </div>
           <div className="definition">
-            <span>Last market data</span>
+            <span>Son piyasa verisi</span>
             <span>{formatAgo(report?.last_market_data ?? null)}</span>
           </div>
         </div>
@@ -124,15 +124,15 @@ export function SystemMonitorPage() {
         </pre>
       </Panel>
 
-      <Panel title="Event log" subtitle="Signals, orders, risk rejections, reconciliation and errors">
+      <Panel title="Olay kaydı" subtitle="Sinyaller, emirler, risk retleri, mutabakat ve hatalar">
         <div className="table-wrap" style={{ maxHeight: 460, overflowY: "auto" }}>
           <table>
             <thead>
               <tr>
-                <th>Time</th>
-                <th>Severity</th>
-                <th>Category</th>
-                <th>Message</th>
+                <th>Zaman</th>
+                <th>Önem</th>
+                <th>Kategori</th>
+                <th>Mesaj</th>
                 <th>Symbol</th>
               </tr>
             </thead>

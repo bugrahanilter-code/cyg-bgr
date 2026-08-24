@@ -47,13 +47,13 @@ class IchimokuStrategy(BaseStrategy):
     """Tenkan/Kijun crossover confirmed by the cloud."""
 
     key = "ichimoku_trend"
-    name = "Ichimoku Cloud Trend"
+    name = "Ichimoku Bulut Trendi"
     family = "trend"
     risk_level = RiskLevel.MEDIUM
     description = (
-        "Enters on a conversion/base line crossover only when price sits on the "
-        "correct side of the cloud. Slow to react, which cuts false signals and "
-        "also cuts the start of every move."
+        "Fiyat bulutun doğru tarafındayken dönüşüm/temel çizgi kesişiminde girer. "
+        "Tepkisi yavaştır; bu hem yanlış sinyalleri hem de her hareketin başlangıcını "
+        "keser."
     )
     params_model = IchimokuParams
 

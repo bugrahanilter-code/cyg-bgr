@@ -47,12 +47,12 @@ class SupertrendStrategy(BaseStrategy):
     """Enters when SuperTrend flips and rides the move."""
 
     key = "supertrend_follow"
-    name = "SuperTrend Follower"
+    name = "Supertrend Takibi"
     family = "trend"
     risk_level = RiskLevel.MEDIUM
     description = (
-        "Follows the SuperTrend ATR trailing stop and uses the line itself as "
-        "the protective stop. Clean in trends, choppy when the market ranges."
+        "ATR tabanlı Supertrend çizgisi yön değiştirdiğinde girer ve tekrar dönene "
+        "kadar tutar. Oynaklık sıkıştığında sık sık yön değiştirir."
     )
     params_model = SupertrendParams
 

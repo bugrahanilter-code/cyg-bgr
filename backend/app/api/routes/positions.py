@@ -8,6 +8,7 @@ from fastapi import APIRouter, HTTPException
 
 from app.api.deps import Context, DbSession
 from app.core.constants import ExitReason, TradingMode
+from app.core.exceptions import TradingPlatformError
 from app.models.trading import Position
 from app.schemas.common import MessageResponse
 from app.schemas.requests import ClosePositionRequest
@@ -47,14 +48,44 @@ async def close_position(
         raise HTTPException(status_code=503, detail="Trading engine is not available")
 
     price = context.market_data.last_price(position.symbol) if context.market_data else None
-    trade = await context.engine.execution.execute_exit(
-        db, position, reason=ExitReason.MANUAL, price_hint=price
-    )
+    open_quantity = float(position.quantity)
+    partial = payload.percent < 100.0
+    quantity = open_quantity * payload.percent / 100.0 if partial else None
+
+    try:
+        trade = await context.engine.execution.execute_exit(
+            db,
+            position,
+            reason=ExitReason.MANUAL,
+            price_hint=price,
+            quantity=quantity,
+        )
+    except TradingPlatformError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=exc.message) from exc
+
     if trade is None:
-        return MessageResponse(ok=False, message="The exchange did not confirm the closing order.")
+        return MessageResponse(
+            ok=False, message="Borsa kapatma emrini onaylamadı. Pozisyon açık kaldı."
+        )
+
+    db.refresh(position)
+    remaining = float(position.quantity)
+    if partial and remaining > 0:
+        message = (
+            f"{position.symbol}: pozisyonun %{payload.percent:g}'i kapatıldı, "
+            f"{remaining:g} açık kaldı."
+        )
+    else:
+        message = f"{position.symbol} kapatıldı."
+
     return MessageResponse(
-        message=f"{position.symbol} closed.",
-        details={"net_pnl": float(trade.net_pnl), "exit_price": float(trade.exit_price)},
+        message=message,
+        details={
+            "net_pnl": float(trade.net_pnl),
+            "exit_price": float(trade.exit_price),
+            "closed_quantity": float(trade.quantity),
+            "remaining_quantity": remaining,
+        },
     )
 
 

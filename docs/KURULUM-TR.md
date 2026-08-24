@@ -105,12 +105,15 @@ Panel açıldıysa her şey hazır demektir. Sistem otomatik olarak **paper trad
 
 | Sayfa | Ne işe yarar |
 | --- | --- |
+| Markets | Binance'teki **bütün** coinler, canlı 24 saatlik veriler, arama/sıralama, TradingView grafiği, işleme açma |
 | Overview | Genel durum: bakiye, kâr/zarar, açık pozisyonlar, günlük hedef |
 | Positions | Açık pozisyonların detayı, tek tuşla kapatma |
 | Trades | Tüm işlem geçmişi, filtrelerle |
 | Strategies | Üç stratejiyi aç/kapat, ayarlarını değiştir, sinyalleri gör |
 | Comparison | Stratejileri yan yana karşılaştır |
 | Backtest Lab | Geçmiş veriyle strateji testi |
+| Matrix Backtest | Bütün stratejileri, bütün coinlerde, bütün zaman dilimlerinde topluca test et |
+| Rotation | 24 saatte en çok yükselen coinleri otomatik olarak işleme aç, saat başı güncelle |
 | Risk Settings | Risk limitleri (en önemli sayfa) |
 | System | Sistem sağlığı, motor başlat/durdur, olay kayıtları |
 | Settings | Binance API, coin seçimi, canlı işlem anahtarı |
@@ -237,6 +240,53 @@ kısıtlanır.
 Günlük hedefe ulaşıldığında bot yeni işlem açmayı durdurur, açık pozisyonları
 yönetmeye devam eder. Hedefe ulaşmak için asla riski artırmaz.
 
+### Stop loss ve take profit
+
+İkisi de **Risk Settings** sayfasından ayarlanır ve ikisi de tek bir ortak
+fonksiyonla karara bağlanır — backtester ve canlı motor aynı fonksiyonu çağırır.
+Bu önemli: burada değiştirdiğiniz bir kural simülasyonu ve gerçek emirleri
+birlikte hareket ettirir, yani backtest anlamını korur.
+
+**Stop loss** üç mod:
+
+| Mod | Ne yapar |
+| --- | --- |
+| Strategy (varsayılan) | Her strateji kendi stopunu koyar (genelde ATR bazlı) |
+| Fixed | Stratejiyi yok sayar, her işlemde sabit yüzde |
+| Bounded | Strateji seçer ama sonuç min/maks bandına sıkıştırılır |
+
+Min/maks bandı, `fixed` dışındaki her modda **güvenlik zarfı** olarak uygulanır —
+%40 stop isteyen bir strateji hata yapıyordur, tercih yapmıyordur.
+
+Pozisyon büyüklüğü **karara bağlanan** stoptan hesaplanır. Yani stopu
+genişletmek pozisyonu **küçültür**, riske attığınız parayı artırmaz.
+
+**Take profit** dört mod: `strategy`, `fixed_pct`, `risk_multiple` (2R = stopun
+iki katı uzaklıkta hedef; genişletilen stopu takip eder) ve `none`.
+
+> **Bu platformda ölçülen sonuç:** take profit'i kaldırmak, **93 eşleştirilmiş
+> testin 70'inde** beklentiyi iyileştirdi — aynı strateji, aynı market, aynı
+> zaman dilimi, sadece bu tek ayar değiştirilerek; 6 strateji, 8 market,
+> 2 zaman dilimi, 12 ay. Medyan beklenti **+0,048R'den +0,132R'ye** çıktı.
+>
+> Mekanizma trend takipçilerinin anlattığı şey: bu sistemler, birçok küçük zararı
+> ödeyen birkaç büyük kazançtan para kazanır ve sabit hedef tam olarak o
+> kazançları kesip atar. Take profit'i kaldırınca **kazanma oranı düşer** —
+> bu yüzden panelde yanlış görünür, equity eğrisinde doğrudur.
+>
+> Bir yıl ve tek bir maliyet modeli, yani kesin gerçek değil güçlü bir hipotez.
+> Ama 93 bağımsız hücrede doğrulanmış **yapısal** bir değişiklik — 74
+> kombinasyonun en iyisini seçmekten çok daha sağlam bir kanıt.
+
+**Trailing stop ve break-even** de burada. Stop sadece kâr yönünde hareket eder;
+gevşetilemez. İkisi de varsayılan olarak kapalı ve ikisinin de bir bedeli var:
+aynı testte BTC/USDT'de %2 trailing ve 1R'de break-even sonuçları **kötüleştirdi**,
+çünkü kazançlı işlemleri başabaşa çeviriyorlar. Bunlar araçtır, bedava iyileştirme
+değil.
+
+**Minimum ödül/risk** oranı, hedefi stopa göre fazla yakın olan girişleri
+reddeder. Varsayılan kapalı.
+
 ## 11. ACİL DURDURMA
 
 Üst bardaki kırmızı **EMERGENCY STOP** düğmesi her sayfada vardır. Üç seçenek
@@ -284,28 +334,181 @@ kaybedebilirsiniz.
 Her stratejinin nasıl çalıştığı, hangi varsayımlara dayandığı ve **hangi
 durumlarda para kaybettiği** `docs/strategies/` klasöründe yazılıdır.
 
-### En yüksek hacimli 10 coin
+### Bütün Binance coinleri
 
-İlk açılışta şu 10 coin veritabanına eklenir:
+**Markets** sayfası Binance vadeli borsasındaki **her USDT perpetual marketi**
+listeler — şu an 525 tane. Her satırda canlı 24 saatlik veriler var:
 
-```
-BTC  ETH  SOL  XRP  BNB  DOGE  ZEC  HYPE  TRUMP  ENA
-```
+| Sütun | Anlamı |
+| --- | --- |
+| Price | Son fiyat |
+| 24h % | 24 saatlik değişim |
+| 24h high / low | 24 saatlik en yüksek / en düşük |
+| 24h range | Fiyat 24 saatlik bandın neresinde (0% = dip, 100% = tepe) |
+| 24h volume | 24 saatlik USDT hacmi |
+| Spread | Canlı alış-satış farkı |
+| ATR % | Fiyatın yüzdesi olarak oynaklık |
+| RSI | TradingView'in günlük RSI değeri |
+| TV rating | TradingView'in teknik değerlendirmesi |
+| **Round trip cost** | **Bir alım-satımın toplam maliyeti** |
 
-Ama **sadece BTC ve ETH işleme açıktır.** Bir coini eklemek onu "kullanılabilir"
-yapar; işleme açmak Settings sayfasında ayrı bir onay kutusudur. Sebebi basit:
-açık her market motorun işini ve aynı anda açılabilecek pozisyon sayısını
-artırır.
+**Round trip cost sütunu en önemlisi.** İçinde giriş komisyonu + çıkış
+komisyonu + iki yönlü slippage + spread var. Bir stratejinin *herhangi bir
+kazanç* elde etmesi için önce bu rakamı aşması gerekir. Düşük hacimli
+coinlerde bu maliyet, şimdiye kadar bulunan her edge'den büyük çıktı.
 
-Listeyi güncellemek için: **Settings → "Add the 10 highest-volume coins"**.
-Binance'ten canlı hacim sıralamasını okur.
+İki durum bilinçli olarak ayrı tutulur:
 
-**Önemli:** Binance'in vadeli borsasında hacim listesinin tepesinde
-tokenize hisse senetleri ve emtialar var (SanDisk, altın, SpaceX, Micron gibi).
-Bunlar kripto değil, borsa saatlerine göre çalışır ve hafta sonu boşluk verir —
-stratejileri yanıltır. Bu yüzden **otomatik olarak eleniyorlar.** Ayrıca her
-coin bir kez listelenir; BTC/USDT ve BTC/USDC birlikte açılıp aynı varlığa
-farkında olmadan iki kat maruz kalmanız engellenir.
+* **Available (kullanılabilir)** — coin veritabanında, backtest yapılabilir.
+  *Markets → "Import every market"* hepsini tek seferde ekler.
+* **Enabled (işleme açık)** — bot her mumda o marketi de değerlendirir.
+  Bu, coin başına ayrı bir tıklamadır. Sebebi: açık her market motora bir
+  strateji değerlendirmesi ve risk motoruna bir pozisyon daha ekler.
+
+Temiz kurulumda **sadece BTC/USDT ve ETH/USDT işleme açıktır.**
+
+Tokenize hisse senetleri ve emtialar (SanDisk, altın, SpaceX gibi — Binance
+bunları da aynı borsada listeliyor) **otomatik olarak eleniyor:** borsa
+saatlerine göre çalışırlar, hafta sonu boşluk verirler ve buradaki her strateji
+onları yanlış okur.
+
+### Otomatik rotasyon (en çok yükselen coinler)
+
+**Rotation** sayfası her marketi 24 saatlik değişime göre sıralar ve en üstteki
+N tanesini işleme açık set yapar; varsayılan olarak saat başı yeniler.
+
+**Kapalı ve dry-run modunda gelir.** Sebebi: botun neyi işlediğini sormadan
+değiştiriyor. İki adımda açın — önce etkinleştirin, bir dry-run izleyin, sonra
+dry-run işaretini kaldırın.
+
+Açmadan önce şunu okuyun:
+
+> Rotasyon bir **seçim kuralıdır, edge değildir.** Bir coin listeye *zaten
+> yükseldiği için* girer; buradaki hiçbir şey yükselmeye devam edeceğini
+> söylemez. Her yenileme ayrıca çıkan coinde bir kapanış, giren coinde bir açılış
+> maliyeti öder — ve işlem maliyeti, bu platformda incelenen her stratejiyi yenen
+> tek faktör.
+
+Listeyi "dramatik" değil "işlenebilir" tutan kalite filtreleri:
+
+| Filtre | Varsayılan | Neden |
+| --- | ---: | --- |
+| Minimum 24s hacim | $50M | 2 milyon dolarla pump olan coin emri kaldıramaz |
+| Maksimum spread | %0,15 | Her girişte ve her çıkışta ödenir |
+| Minimum listelenme yaşı | 30 gün | Geçen hafta listelenen coinin backtest geçmişi yok |
+| Şundan büyük hareketleri yoksay | %100 | Genelde listeleme olayıdır, trend değil |
+| Çıkarma sonrası bekleme | 4 saat | Sınırdaki coinin her saat girip çıkmasını önler |
+| Çalışma başına maks. çıkarma | 10 | Tek bir volatil saat tüm defteri boşaltamaz |
+
+Üç kural ayarlanamaz:
+
+* **Açık pozisyonu olan market asla kapatılmaz.** Pozisyon kapanana kadar
+  yerini korur, böylece motor çıkışı yönetmeye devam edebilir. Kayıtta
+  *held open* olarak görünür.
+* **Sadece-araştırma marketleri (EUR/USD, USD/JPY) asla seçilemez.**
+* **Her reddin bir gerekçesi kaydedilir** — "bu coin neden listede yok"
+  sorusu sonradan da cevaplanabilir.
+
+### Sweep'ten strateji seçme
+
+*Matrix Backtest → strateji seç*, bir sweep'teki her strateji/zaman dilimi
+kombinasyonunu sıralar. Bilerek zor beğenir: 84 kombinasyonun en iyisini seçmek,
+kendini kandırmanın klasik yoludur — o kadar çok denemede en iyi backtest sayısı,
+stratejilerin hepsi değersiz olsa bile yaklaşık %99'luk dilimde çıkar.
+
+Bir kombinasyonun geçmesi gereken dört bağımsız eşik:
+
+1. **Yeterli işlem** — marketler toplamında 100, sayılan her markette 20.
+2. **Genişlik, tek şanslı market değil** — test edildiği marketlerin en az
+   %55'inde kârlı; *medyan* market üzerinden ölçülür, böylece tek bir aykırı
+   değer kombinasyonu taşıyamaz.
+3. **Maliyet farkında** — komisyon, spread ve slippage sonrası medyan beklenti
+   R cinsinden pozitif.
+4. **Örneklem dışı** — kazanan, onu seçmek için kullanılmayan bir pencerede
+   yeniden çalıştırılır. Onay verilmeden uygulanamaz.
+
+`NO_QUALIFYING_COMBINATION` normal bir cevaptır ve "en az kötü" satır yerine bu
+döner — çünkü en az kötü satırı geri vermek, zarar eden bir konfigürasyonun
+işleme başlamasının tam olarak yoludur.
+
+### Altın ve forex (referans marketler)
+
+Coinlerin yanına dört kripto-dışı market eklendi. Bunlar **işlem yapmak için
+değil, karşılaştırma için** var:
+
+| Market | Kaynak | İşlem açılabilir mi | Gidiş-dönüş maliyet | Seans |
+| --- | --- | --- | ---: | --- |
+| `XAU/USDT` | Binance perpetual | **Evet** | ~%0,12 | 7/24 |
+| `PAXG/USDT` | Binance (altın destekli token) | **Evet** | ~%0,12 | 7/24 |
+| `EUR/USD` | Yahoo Finance | **Hayır** | ~%0,02 | Pzt 22:00 – Cum 22:00 UTC |
+| `USD/JPY` | Yahoo Finance | **Hayır** | ~%0,02 | Pzt 22:00 – Cum 22:00 UTC |
+
+Buradaki bütün çalışmalar aynı duvara çarptı: küçük bir edge, işlem
+maliyetlerinin altında kalıyor. Forex tam olarak **tek bir değişkeni**
+değiştiriyor — EUR/USD'de bir alım-satım, kripto perpetual'ından yaklaşık altı
+kat ucuz. Bir strateji orada kârlı, kriptoda zararlıysa sorun maliyettir.
+İkisinde de zararlıysa stratejinin hiçbir yerde edge'i yoktur.
+
+**EUR/USD ve USD/JPY ile işlem açılamaz.** Binance'in forex marketi yok, emir
+hiçbir zaman gerçekleşemez. Bu iki yerde birden engellendi: Risk Engine bu
+sembollerdeki her sinyali `SYMBOL_NOT_TRADABLE` ile reddediyor, emir
+doğrulayıcı da süreçten çıkmadan önce son kontrolde reddediyor. Markets
+sayfasında "backtest only" yazar, Enable düğmesi görünmez.
+
+Forex sonuçlarını okumadan önce bilmeniz gereken üç tuzak:
+
+1. **Hacim verisi yok.** Spot forexin merkezî bir borsası yok, dolayısıyla
+   konsolide hacim de yok — her mumda hacim sıfır. `vwap_pullback` hacme bağlı
+   olduğu için orada **hiç sinyal üretemez**; sıfır işlem göstermesi "çalıştı,
+   bir şey bulamadı" değil, **"hiç çalışamadı"** demektir. Beş strateji daha
+   (`adaptive_momentum`, `breakout_donchian`, `keltner_trend`, `mean_reversion`,
+   `volatility_breakout`) hacmi birkaç puanlama bileşeninden biri olarak
+   kullanır — işlem açmaya devam ederler, sadece o bileşen sürekli sıfır puan
+   alır. Market detay panelinde iki grup da ayrı ayrı yazıyor. Bu ayrım
+   tahminle değil ölçümle yapıldı: her strateji aynı fiyat serisi üzerinde iki
+   kez çalıştırıldı, bir kez hacimle bir kez hacim sıfırlanmış olarak.
+2. **Hafta sonu boşlukları.** Market cuma kapanır, pazar açılır. Buradaki her
+   strateji kesintisiz akış varsayar ve bu boşluğu sıradan bir mum gibi okur.
+3. **Kısa gün içi geçmiş.** Yahoo gün içi veriyi sınırlıyor: 1 saatin altında
+   60 gün, 1 saatte 730 gün, günlükte yıllar. Yani 15 dakikalık bir forex
+   sweep'i, hangi tarih aralığını isterseniz isteyin sadece 2 ayı kapsar.
+
+Altında bu sorunların hiçbiri yok: `XAU/USDT` gerçek bir Binance perpetual'ı,
+7/24 işlem görüyor, gerçek hacmi ve gerçek Binance maliyeti var. Aralık 2025'te
+listelendiği için bir yıldan az geçmişi var.
+
+### Toplu backtest (Matrix Backtest)
+
+**Matrix Backtest** sayfası seçtiğiniz her stratejiyi, seçtiğiniz her coinde,
+seçtiğiniz her zaman diliminde çalıştırır.
+
+Çalıştırmadan önce **"Estimate the cost"** düğmesine basın. Sistem size kaç
+backtest olacağını, ne kadar süreceğini ve ne kadar disk alacağını söyler.
+Bu önemli, çünkü sayılar hızla büyür:
+
+| Kapsam | Backtest sayısı | Süre | Disk |
+| --- | ---: | ---: | ---: |
+| 14 strateji x 30 coin x 6 zaman dilimi x 12 ay | 2.520 | ~53 dk | 1,4 GB |
+| 14 strateji x 50 coin x 6 zaman dilimi x 12 ay | 4.200 | ~1,5 sa | 2,3 GB |
+| 14 strateji x 523 coin x 6 zaman dilimi x 12 ay | 43.932 | ~15 sa | 24 GB |
+| **14 strateji x 523 coin x 14 zaman dilimi x 24 ay** | **102.508** | **~397 sa (16 gün)** | **628 GB** |
+
+Son satır fiziksel olarak yapılamaz demek değil, ama 16 gün kesintisiz CPU ve
+628 GB disk demek. Asıl maliyeti 1m/3m/5m zaman dilimleri getirir: tek başına
+1 dakikalık mumlar toplam işin dörtte üçünden fazlasını oluşturur. Üstelik
+şimdiye kadarki bütün çalışmalarda işlem maliyetlerinin edge'i yendiği yer tam
+olarak orasıydı.
+
+Sonuç ekranında üç bölüm var:
+
+1. **What the grid says** — kaç hücre kârlı, kaçı al-tut'u geçti, ortalama
+   R cinsinden beklenti
+2. **Where does the edge survive?** — strateji x zaman dilimi ısı haritası
+   (yeşil = maliyetten sonra pozitif, kırmızı = negatif)
+3. **Every result** — her hücrenin tam tablosu, filtrelenebilir ve sıralanabilir
+
+İlginç bir hücre bulursanız aynı ayarlarla **Backtest Lab**'de tekrar çalıştırıp
+equity eğrisini ve işlem listesini görebilirsiniz.
 
 ### Botu başlatma ve durdurma
 

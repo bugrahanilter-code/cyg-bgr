@@ -41,12 +41,24 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, expi
 
 @event.listens_for(Engine, "connect")
 def _set_sqlite_pragma(dbapi_connection, connection_record) -> None:  # pragma: no cover
-    """Enable foreign keys on SQLite (they are off by default)."""
+    """Tune SQLite for a long running writer next to live readers.
+
+    A matrix backtest commits once per grid cell - thousands of small writes -
+    while the dashboard keeps polling and the trading engine keeps journalling.
+    In SQLite's default rollback journal a writer blocks every reader, so that
+    combination produces "database is locked" errors. WAL lets readers carry on
+    during a write, and busy_timeout makes the remaining collisions wait instead
+    of failing.
+    """
     module = type(dbapi_connection).__module__
-    if "sqlite" in module:
-        cursor = dbapi_connection.cursor()
-        cursor.execute("PRAGMA foreign_keys=ON")
-        cursor.close()
+    if "sqlite" not in module:
+        return
+    cursor = dbapi_connection.cursor()
+    cursor.execute("PRAGMA foreign_keys=ON")
+    cursor.execute("PRAGMA journal_mode=WAL")
+    cursor.execute("PRAGMA synchronous=NORMAL")
+    cursor.execute("PRAGMA busy_timeout=30000")
+    cursor.close()
 
 
 def get_db() -> Generator[Session, None, None]:

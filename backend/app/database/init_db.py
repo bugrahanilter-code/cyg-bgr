@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.logging import get_logger
+from app.core.time_utils import utcnow
 from app.database.base import Base
 from app.database.session import SessionLocal, engine
 from app.exchange.filters import default_filters_for
@@ -83,11 +84,83 @@ def seed_strategies(db: Session) -> None:
     db.commit()
 
 
+def seed_reference_markets(db: Session) -> int:
+    """Make gold and the FX majors available without a manual import.
+
+    They are inserted as *available*, never as *enabled*: EUR/USD and USD/JPY
+    cannot be traded at all, and the Risk Engine rejects any signal on them.
+    They exist so a crypto result can be compared against a market with six
+    times less friction.
+    """
+    from app.market_data import reference_markets
+
+    added = 0
+    for market in reference_markets.REFERENCE_MARKETS.values():
+        existing = db.execute(
+            select(Symbol).where(Symbol.symbol == market.symbol)
+        ).scalar_one_or_none()
+        if existing is not None:
+            continue
+        base, _, quote = market.symbol.partition("/")
+        filters = default_filters_for(market.symbol)
+        db.add(
+            Symbol(
+                symbol=market.symbol,
+                base_asset=base,
+                quote_asset=quote,
+                enabled=False,
+                tick_size=filters.tick_size,
+                step_size=filters.step_size,
+                min_quantity=filters.min_quantity,
+                min_notional=filters.min_notional,
+                price_precision=filters.price_precision,
+                quantity_precision=filters.quantity_precision,
+                max_leverage=filters.max_leverage,
+            )
+        )
+        added += 1
+    if added:
+        db.commit()
+        logger.info("Reference markets seeded", extra={"added": added})
+    return added
+
+
 def seed_settings(db: Session) -> None:
     """Materialise the conservative default configuration."""
     settings_service.get_risk_config(db)
     settings_service.get_trading_config(db)
     get_state(db)
+
+
+def recover_orphaned_sweeps(db: Session) -> int:
+    """Close matrix backtests that were interrupted by a restart.
+
+    A sweep lives in a background task, so a process restart kills it while the
+    row still says RUNNING. Leaving it that way would show a phantom job making
+    no progress forever, so the interruption is recorded instead.
+    """
+    from app.core.constants import BacktestStatus
+    from app.models.sweep import BacktestSweep
+
+    orphans = (
+        db.execute(
+            select(BacktestSweep).where(BacktestSweep.status == BacktestStatus.RUNNING.value)
+        )
+        .scalars()
+        .all()
+    )
+    for sweep in orphans:
+        sweep.status = BacktestStatus.FAILED.value
+        sweep.error_message = (
+            "Interrupted by an application restart. Completed cells were kept; "
+            "start a new sweep to finish the grid."
+        )
+        sweep.current_task = ""
+        sweep.completed_at = utcnow()
+    if orphans:
+        db.commit()
+        logger.warning("Interrupted sweeps closed", extra={"count": len(orphans)})
+    return len(orphans)
 
 
 def init_database(create: bool = True) -> None:
@@ -98,6 +171,8 @@ def init_database(create: bool = True) -> None:
         seed_symbols(db)
         seed_strategies(db)
         seed_settings(db)
+        seed_reference_markets(db)
+        recover_orphaned_sweeps(db)
     logger.info("Database bootstrap complete")
 
 

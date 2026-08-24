@@ -106,7 +106,8 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
 }
 
 export const api = {
-  get: <T>(path: string, params?: RequestOptions["params"]) => request<T>(path, { params }),
+  get: <T>(path: string, params?: RequestOptions["params"], timeoutMs?: number) =>
+    request<T>(path, { params, timeoutMs }),
   post: <T>(path: string, body?: unknown, timeoutMs?: number) =>
     request<T>(path, { method: "POST", body, timeoutMs }),
   put: <T>(path: string, body?: unknown) => request<T>(path, { method: "PUT", body }),

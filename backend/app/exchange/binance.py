@@ -433,6 +433,107 @@ class BinanceGateway(ExchangeGateway):
                 break
         return unique
 
+    async def fetch_market_universe(
+        self,
+        quote: str = "USDT",
+        include_non_crypto: bool = False,
+        always_include: set[str] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return EVERY tradable market on the exchange with its 24 hour stats.
+
+        This is the unfiltered counterpart of :meth:`fetch_top_symbols_by_volume`.
+        Instead of a top-N ranking it returns the whole universe so the dashboard
+        can present it with its own search, sort and filter controls.
+
+        Tokenised stocks and commodity indices are still flagged rather than
+        silently dropped: ``is_crypto`` is False for them, so the UI can hide
+        them by default while the user keeps the option of seeing them.
+        """
+        markets = await self._ensure_markets()
+        tickers = await self._call("fetch_tickers")
+        # The 24h ticker endpoint carries no order book, but the live spread is
+        # the cost that decides whether a market is tradable at all, so it is
+        # worth one extra call.
+        try:
+            books = await self._call("fetch_bids_asks")
+        except ExchangeError as exc:
+            logger.info("Order book snapshot unavailable", extra={"detail": str(exc)[:160]})
+            books = {}
+
+        rows: list[dict[str, Any]] = []
+        for market_symbol, market in markets.items():
+            info = market.get("info") or {}
+            canonical = self.to_canonical(market_symbol)
+            if quote and not canonical.endswith(f"/{quote}"):
+                continue
+
+            # A few named markets are wanted even though they fail the crypto
+            # filter: XAU/USDT is a real, tradable Binance perpetual and is the
+            # cost control the crypto studies are compared against.
+            pinned = canonical in (always_include or set())
+
+            if self.market_type == MarketType.FUTURES:
+                status = info.get("status") or info.get("contractStatus")
+                if status not in (None, "TRADING"):
+                    continue
+                contract = info.get("contractType")
+                if contract != PERPETUAL_CONTRACT_TYPE and not pinned:
+                    continue
+                is_crypto = info.get("underlyingType") in (None, CRYPTO_UNDERLYING_TYPE)
+            else:
+                if market.get("active") is False:
+                    continue
+                is_crypto = True
+
+            if not is_crypto and not include_non_crypto and not pinned:
+                continue
+
+            ticker = (tickers or {}).get(market_symbol) or {}
+            book = (books or {}).get(market_symbol) or {}
+            last = _as_float(ticker.get("last"), 0.0) or 0.0
+            high = _as_float(ticker.get("high"), 0.0) or 0.0
+            low = _as_float(ticker.get("low"), 0.0) or 0.0
+            bid = _as_float(book.get("bid"), None) or _as_float(ticker.get("bid"), None)
+            ask = _as_float(book.get("ask"), None) or _as_float(ticker.get("ask"), None)
+            spread_pct = None
+            if bid and ask and ask > 0:
+                spread_pct = (ask - bid) / ((ask + bid) / 2.0) * 100.0
+
+            rows.append(
+                {
+                    "symbol": canonical,
+                    "base_asset": market.get("base") or canonical.split("/")[0],
+                    "quote_asset": market.get("quote") or quote,
+                    "is_crypto": bool(is_crypto),
+                    "last_price": last,
+                    "open_24h": _as_float(ticker.get("open"), 0.0) or 0.0,
+                    "high_24h": high,
+                    "low_24h": low,
+                    "change_24h_pct": _as_float(ticker.get("percentage"), 0.0) or 0.0,
+                    "change_24h_abs": _as_float(ticker.get("change"), 0.0) or 0.0,
+                    "base_volume_24h": _as_float(ticker.get("baseVolume"), 0.0) or 0.0,
+                    "quote_volume_24h": _as_float(ticker.get("quoteVolume"), 0.0) or 0.0,
+                    "weighted_average": _as_float(ticker.get("vwap"), 0.0) or 0.0,
+                    "trade_count_24h": int(_as_float(info.get("count"), 0.0) or 0.0),
+                    "bid": bid,
+                    "ask": ask,
+                    "spread_pct": spread_pct,
+                    # Where inside the 24h range the price currently sits (0-100).
+                    "range_position_pct": (
+                        (last - low) / (high - low) * 100.0 if high > low else None
+                    ),
+                    # Binance publishes leverage only through the (authenticated)
+                    # bracket endpoint, so it is deliberately not guessed here.
+                    "maint_margin_pct": _as_float(info.get("maintMarginPercent"), None),
+                    "onboard_date": info.get("onboardDate"),
+                }
+            )
+
+        rows.sort(key=lambda row: row["quote_volume_24h"], reverse=True)
+        for rank, row in enumerate(rows, start=1):
+            row["volume_rank"] = rank
+        return rows
+
     # -- diagnostics --------------------------------------------------------
     async def check_permissions(self) -> dict[str, Any]:
         """Best-effort inspection of the API key permissions.

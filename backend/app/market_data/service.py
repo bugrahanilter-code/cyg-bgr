@@ -18,8 +18,9 @@ from app.core.constants import ConnectionStatus, HealthStatus, timeframe_to_ms
 from app.core.logging import get_logger
 from app.core.time_utils import seconds_since, to_ms, utcnow
 from app.exchange.base import ExchangeGateway, Ticker
-from app.market_data import store
+from app.market_data import reference_markets, store
 from app.market_data.candles import OHLCV_COLUMNS, drop_unclosed_candle, rows_to_dataframe
+from app.market_data.providers.yahoo import YahooHistoryProvider
 from app.market_data.stream import BinanceWebSocketClient
 
 logger = get_logger(__name__)
@@ -57,6 +58,11 @@ class MarketDataService:
         self.rest_status: ConnectionStatus = ConnectionStatus.DISCONNECTED
         self.last_rest_error: str = ""
         self.candle_listeners: list = []
+
+        # Reference markets (EUR/USD, USD/JPY) have no Binance market at all, so
+        # their candles come from a separate provider. Built on first use: most
+        # installations never touch a non-Binance market.
+        self._external_history: YahooHistoryProvider | None = None
 
         self._ws = BinanceWebSocketClient(
             symbols=self.symbols,
@@ -215,14 +221,33 @@ class MarketDataService:
         owns_session = db is None
         session = db or SessionLocal()
         step = timeframe_to_ms(timeframe)
+        session_gaps = reference_markets.has_session_gaps(symbol)
         cursor = start_ms
         stored = 0
         requests = 0
         try:
+            # Skip what is already cached. Without this a matrix backtest
+            # re-downloads a year of candles for every (market, timeframe) it
+            # visits, even on a second run over the same grid.
+            cached, first_cached, last_cached = store.range_coverage(
+                session, symbol, timeframe, start_ms, end_ms
+            )
+            if cached:
+                expected = max(1, (end_ms - start_ms) // step)
+                covered_from_start = first_cached is not None and first_cached <= start_ms + step
+                complete = cached >= expected * 0.98 and covered_from_start
+                if complete and last_cached is not None and last_cached >= end_ms - 2 * step:
+                    logger.debug(
+                        "Candle range already cached",
+                        extra={"symbol": symbol, "timeframe": timeframe, "candles": cached},
+                    )
+                    return 0
+                if covered_from_start and last_cached is not None:
+                    # Resume at the first missing candle rather than at the start.
+                    cursor = max(cursor, last_cached + step)
+
             while cursor <= end_ms and requests < max_requests:
-                rows = await self.gateway.fetch_ohlcv(
-                    symbol, timeframe, cursor, MAX_ROWS_PER_REQUEST
-                )
+                rows = await self._fetch_ohlcv(symbol, timeframe, cursor)
                 requests += 1
                 if not rows:
                     break
@@ -234,7 +259,11 @@ class MarketDataService:
                 if last_open < cursor:
                     break
                 cursor = last_open + step
-                if len(rows) < MAX_ROWS_PER_REQUEST:
+                # A short page means "no more data" only on a market that never
+                # closes. On FX a full week of calendar time contains roughly
+                # five days of candles, so a short page is normal and the loop
+                # has to keep walking until the window is covered.
+                if len(rows) < MAX_ROWS_PER_REQUEST and not session_gaps:
                     break
         finally:
             if owns_session:
@@ -244,6 +273,23 @@ class MarketDataService:
             extra={"symbol": symbol, "timeframe": timeframe, "stored": stored},
         )
         return stored
+
+    def history_source(self, symbol: str) -> str:
+        """Which provider serves this symbol's candles."""
+        market = reference_markets.get(symbol)
+        return market.provider if market else "binance"
+
+    async def _fetch_ohlcv(
+        self, symbol: str, timeframe: str, since_ms: int | None
+    ) -> list[list[float]]:
+        """Read raw candles from whichever source owns this symbol."""
+        if self.history_source(symbol) == "yahoo":
+            if getattr(self, "_external_history", None) is None:
+                self._external_history = YahooHistoryProvider()
+            return await self._external_history.fetch_ohlcv(
+                symbol, timeframe, since_ms, MAX_ROWS_PER_REQUEST
+            )
+        return await self.gateway.fetch_ohlcv(symbol, timeframe, since_ms, MAX_ROWS_PER_REQUEST)
 
     async def sync_recent(
         self, symbol: str, timeframe: str, lookback: int = 500, db: Session | None = None

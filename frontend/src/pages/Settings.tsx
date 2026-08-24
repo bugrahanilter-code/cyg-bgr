@@ -1,8 +1,10 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
 
 import { Badge } from "@/components/Badge";
 import { Panel } from "@/components/Panel";
 import { Banner, ErrorState, Loading } from "@/components/StateViews";
+import { ResetAccountButton } from "@/components/ResetAccountButton";
 import { Toggle } from "@/components/Toggle";
 import { REFRESH_SLOW, useApiMutation, usePolledQuery } from "@/hooks/useApi";
 import {
@@ -62,7 +64,7 @@ function ApiCredentialsPanel() {
   return (
     <Panel
       title="Binance API"
-      subtitle="Market data works without a key. A key is only needed for balances and live trading."
+      subtitle="Piyasa verisi anahtarsız çalışır. Anahtar sadece bakiye ve gerçek işlem için gerekir."
       actions={
         <Badge tone={view?.configured ? "success" : "neutral"}>
           {view?.configured ? "CONNECTED" : "NOT CONFIGURED"}
@@ -85,29 +87,29 @@ function ApiCredentialsPanel() {
 
       <div className="grid grid-2">
         <div className="field">
-          <label htmlFor="api-key">API key</label>
+          <label htmlFor="api-key">API anahtarı</label>
           <input
             id="api-key"
             type="text"
             autoComplete="off"
-            placeholder={view?.api_key_masked || "Paste your API key"}
+            placeholder={view?.api_key_masked || "API anahtarınızı yapıştırın"}
             value={apiKey}
             onChange={(event) => setApiKey(event.target.value)}
           />
         </div>
         <div className="field">
-          <label htmlFor="api-secret">API secret</label>
+          <label htmlFor="api-secret">API gizli anahtarı</label>
           <input
             id="api-secret"
             type="password"
             autoComplete="off"
-            placeholder="Never displayed again after saving"
+            placeholder="Kaydedildikten sonra bir daha gösterilmez"
             value={apiSecret}
             onChange={(event) => setApiSecret(event.target.value)}
           />
         </div>
         <div className="field">
-          <label htmlFor="market-type">Market</label>
+          <label htmlFor="market-type">Piyasa</label>
           <select
             id="market-type"
             value={marketType}
@@ -148,7 +150,7 @@ function ApiCredentialsPanel() {
           disabled={test.isPending}
           onClick={() => test.mutate(undefined)}
         >
-          Test connection
+          Bağlantıyı test et
         </button>
         <button
           type="button"
@@ -209,8 +211,8 @@ function LiveTradingPanel() {
 
   return (
     <Panel
-      title="Live trading"
-      subtitle="Disabled by default. Two separate confirmations are required."
+      title="Gerçek para ile işlem"
+      subtitle="Varsayılan olarak kapalı. İki ayrı onay gerekir."
       actions={
         <Badge tone={data?.confirmed ? "danger" : "neutral"}>
           {data?.confirmed ? "LIVE ORDERS ENABLED" : "SIMULATION ONLY"}
@@ -297,8 +299,6 @@ export function SettingsPage() {
   const [higherTimeframe, setHigherTimeframe] = useState("4h");
   const [leverage, setLeverage] = useState(2);
   const [autoStart, setAutoStart] = useState(true);
-  const [resetBalance, setResetBalance] = useState(10000);
-  const [clearHistory, setClearHistory] = useState(false);
 
   useEffect(() => {
     const trading = settings.data?.trading;
@@ -327,14 +327,6 @@ export function SettingsPage() {
     },
   );
 
-  const resetPaper = useApiMutation(
-    () => tradingService.resetPaper(resetBalance, clearHistory),
-    [["overview"], ["trades"], ["positions"]],
-    {
-      onSuccess: (response) => pushToast(response.message, "success"),
-      onError: (error) => pushToast(error.message, "error"),
-    },
-  );
 
   const toggleStrategy = useApiMutation(
     (payload: { key: string; enabled: boolean }) =>
@@ -365,15 +357,15 @@ export function SettingsPage() {
     <>
       <div className="page-header">
         <div>
-          <h1>Settings</h1>
-          <p>API access, markets, timeframes and the live trading switch.</p>
+          <h1>Ayarlar</h1>
+          <p>API erişimi, marketler, zaman dilimleri ve gerçek para anahtarı.</p>
         </div>
       </div>
 
       <ApiCredentialsPanel />
 
       <Panel
-        title="Markets and timeframes"
+        title="Marketler ve zaman dilimleri"
         subtitle={"Available: " + available.length + " markets. Enabled for trading: " + symbols.length}
         actions={
           <button
@@ -381,9 +373,9 @@ export function SettingsPage() {
             className="btn btn-sm"
             disabled={syncTop.isPending}
             onClick={() => syncTop.mutate(undefined)}
-            title="Reads the 24 hour volume ranking from Binance and adds the top markets."
+            title="Binance'ten 24 saatlik hacim sıralamasını okur ve en büyükleri ekler."
           >
-            {syncTop.isPending ? "Loading..." : "Add the 10 highest-volume coins"}
+            {syncTop.isPending ? "Loading..." : "En yüksek hacimli 10 coini ekle"}
           </button>
         }
       >
@@ -395,26 +387,38 @@ export function SettingsPage() {
         </Banner>
         <div className="grid grid-3">
           <div className="field">
-            <label>Markets</label>
-            {available.map((symbol) => (
-              <label className="checkbox-row" key={symbol}>
-                <input
-                  type="checkbox"
-                  checked={symbols.includes(symbol)}
-                  onChange={(event) =>
-                    setSymbols((current) =>
-                      event.target.checked
-                        ? [...current, symbol]
-                        : current.filter((item) => item !== symbol),
-                    )
+            <label>Markets enabled for trading ({symbols.length})</label>
+            {/* Once every Binance market is imported this list is 500+ long, so
+                the full, searchable table lives on the Markets page and this
+                panel only manages what is already switched on. */}
+            <div className="chip-row">
+              {symbols.length === 0 && (
+                <span className="muted small">
+                  Nothing is enabled. Pick markets on the Markets page.
+                </span>
+              )}
+              {symbols.map((symbol) => (
+                <button
+                  key={symbol}
+                  type="button"
+                  className="chip"
+                  title={"Remove " + symbol}
+                  onClick={() =>
+                    setSymbols((current) => current.filter((item) => item !== symbol))
                   }
-                />
-                {symbol}
-              </label>
-            ))}
+                >
+                  {symbol} <span aria-hidden="true">x</span>
+                </button>
+              ))}
+            </div>
+            <small>
+              {available.length} markets are available. Use{" "}
+              <Link to="/markets">Markets</Link> to search all of them with live 24 hour
+              statistics and enable the ones you want.
+            </small>
           </div>
           <div className="field">
-            <label htmlFor="tf">Strategy timeframe</label>
+            <label htmlFor="tf">Strateji zaman dilimi</label>
             <select id="tf" value={timeframe} onChange={(event) => setTimeframe(event.target.value)}>
               {TIMEFRAMES.map((item) => (
                 <option key={item} value={item}>
@@ -422,10 +426,10 @@ export function SettingsPage() {
                 </option>
               ))}
             </select>
-            <small>The candle the strategies evaluate.</small>
+            <small>Stratejilerin değerlendirdiği mum.</small>
           </div>
           <div className="field">
-            <label htmlFor="htf">Higher timeframe</label>
+            <label htmlFor="htf">Üst zaman dilimi</label>
             <select
               id="htf"
               value={higherTimeframe}
@@ -468,7 +472,7 @@ export function SettingsPage() {
         </div>
       </Panel>
 
-      <Panel title="Strategies">
+      <Panel title="Stratejiler">
         {(strategies.data ?? []).map((strategy) => (
           <div className="row-between" key={strategy.key}>
             <div>
@@ -485,37 +489,13 @@ export function SettingsPage() {
 
       <LiveTradingPanel />
 
-      <Panel title="Paper account">
-        <div className="grid grid-3">
-          <div className="field">
-            <label htmlFor="reset-balance">Starting balance</label>
-            <input
-              id="reset-balance"
-              type="number"
-              min={100}
-              value={resetBalance}
-              onChange={(event) => setResetBalance(Number(event.target.value))}
-            />
-          </div>
-          <div className="field">
-            <label>Also delete the paper history</label>
-            <Toggle checked={clearHistory} onChange={setClearHistory} />
-          </div>
-        </div>
-        <div className="btn-row">
-          <button
-            type="button"
-            className="btn btn-warning"
-            disabled={resetPaper.isPending}
-            onClick={() => resetPaper.mutate(undefined)}
-          >
-            Reset the paper account
-          </button>
-        </div>
-        <small className="muted">
-          Close every open paper position first. Live balances are never touched by this
-          button.
-        </small>
+      <Panel
+        title="Kağıt hesap"
+        subtitle="Bakiyeyi, varlık eğrisini ve işlem geçmişini sıfırlar. Gerçek para hesabına dokunulmaz."
+      >
+        {/* One reset control, shared with the Overview page. Two separate
+            implementations of a destructive action is one too many. */}
+        <ResetAccountButton label="Kağıt hesabı sıfırla…" className="btn btn-warning" />
       </Panel>
     </>
   );

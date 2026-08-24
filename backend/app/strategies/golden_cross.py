@@ -47,13 +47,13 @@ class GoldenCrossStrategy(BaseStrategy):
     """Long-term moving average crossover."""
 
     key = "golden_cross"
-    name = "Golden Cross Trend"
+    name = "Altın Kesişim"
     family = "trend"
     risk_level = RiskLevel.SAFE
     description = (
-        "Buys when the fast moving average crosses above the slow one and holds "
-        "until it crosses back. Very few trades, wide stops, long-only by "
-        "default. Gives back a large part of every trend at the exit."
+        "Hızlı hareketli ortalama yavaşı yukarı kestiğinde alır, geri kesene kadar "
+        "tutar. Çok az işlem, geniş stop, varsayılan olarak sadece alış. Çıkışta her "
+        "trendin büyük bölümünü geri verir."
     )
     params_model = GoldenCrossParams
 

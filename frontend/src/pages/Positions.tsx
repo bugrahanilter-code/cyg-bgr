@@ -1,4 +1,5 @@
 import { Badge } from "@/components/Badge";
+import { ClosePositionButton } from "@/components/ClosePositionButton";
 import { Panel } from "@/components/Panel";
 import { ErrorState, Loading } from "@/components/StateViews";
 import { REFRESH_FAST, useApiMutation, usePolledQuery } from "@/hooks/useApi";
@@ -22,14 +23,6 @@ export function PositionsPage() {
     REFRESH_FAST,
   );
 
-  const closeOne = useApiMutation(
-    (id: number) => positionService.close(id),
-    [["positions"], ["overview"], ["trades"]],
-    {
-      onSuccess: (response) => pushToast(response.message, "success"),
-      onError: (mutationError) => pushToast(mutationError.message, "error"),
-    },
-  );
 
   const closeAll = useApiMutation(
     () => positionService.closeAll(),
@@ -51,39 +44,53 @@ export function PositionsPage() {
 
   return (
     <>
-      <div className="page-header">
-        <div>
-          <h1>Positions</h1>
-          <p>Everything the platform currently holds, including margin and liquidation data.</p>
-        </div>
-        <button
-          type="button"
-          className="btn btn-danger"
-          disabled={positions.length === 0 || closeAll.isPending}
-          onClick={() => closeAll.mutate(undefined)}
-        >
-          Close every position
-        </button>
-      </div>
-
-      <Panel title={"Open positions (" + positions.length + ")"}>
+      <Panel
+        title={"Açık pozisyonlar (" + positions.length + ")"}
+        actions={
+          positions.length > 0 ? (
+            <button
+              type="button"
+              className="btn btn-sm btn-danger"
+              disabled={closeAll.isPending}
+              onClick={() => closeAll.mutate(undefined)}
+            >
+              {closeAll.isPending ? "Kapatılıyor…" : "Hepsini kapat"}
+            </button>
+          ) : undefined
+        }
+      >
         <div className="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Symbol</th>
-                <th>Side</th>
-                <th>Strategy</th>
-                <th className="numeric">Size</th>
-                <th className="numeric">Entry</th>
-                <th className="numeric">Price</th>
+                <th>Market</th>
+                <th>Yön</th>
+                <th>Strateji</th>
+                <th className="numeric">Miktar</th>
+                <th className="numeric">Değer</th>
+                <th className="numeric">Giriş</th>
+                <th className="numeric">Fiyat</th>
                 <th className="numeric">Stop</th>
-                <th className="numeric">Target</th>
-                <th className="numeric">Leverage</th>
-                <th className="numeric">Margin</th>
-                <th className="numeric">Liquidation</th>
-                <th className="numeric">Unrealised</th>
-                <th>Opened</th>
+                <th className="numeric">Hedef</th>
+                <th className="numeric">Kaldıraç</th>
+                <th className="numeric">Teminat</th>
+                <th className="numeric">Likidasyon</th>
+                <th
+                  className="numeric"
+                  title="Giriş komisyonu, funding ve kapatırken ödenecek çıkış komisyonu düşülmüş hâli."
+                >
+                  Net K/Z
+                </th>
+                <th className="numeric" title="Piyasanın ne kadar hareket ettiği. Kaldıraçtan bağımsız.">
+                  Fiyat %
+                </th>
+                <th
+                  className="numeric"
+                  title="Bu hareketin yatırdığınız teminata etkisi. Kaldıraç bu oranı çarpar."
+                >
+                  Teminat %
+                </th>
+                <th>Açılış</th>
                 <th />
               </tr>
             </thead>
@@ -91,7 +98,7 @@ export function PositionsPage() {
               {positions.length === 0 && (
                 <tr>
                   <td colSpan={14} className="table-empty">
-                    No open positions.
+                    Açık pozisyon yok.
                   </td>
                 </tr>
               )}
@@ -101,10 +108,13 @@ export function PositionsPage() {
                     <strong>{position.symbol}</strong>
                   </td>
                   <td>
-                    <Badge tone={sideTone(position.side)}>{position.side}</Badge>
+                    <Badge tone={sideTone(position.side)}>
+                      {position.side === "LONG" ? "AL" : "SAT"}
+                    </Badge>
                   </td>
                   <td>{position.strategy}</td>
                   <td className="numeric">{formatQuantity(position.quantity)}</td>
+                  <td className="numeric">{formatCurrency(position.current_notional)}</td>
                   <td className="numeric">{formatPrice(position.entry_price)}</td>
                   <td className="numeric">{formatPrice(position.current_price)}</td>
                   <td className="numeric">
@@ -116,20 +126,22 @@ export function PositionsPage() {
                   <td className="numeric">{formatPrice(position.liquidation_price)}</td>
                   <td className={"numeric " + pnlClass(position.unrealized_pnl)}>
                     {formatSignedCurrency(position.unrealized_pnl)}
-                    <div className="small muted">
-                      {position.unrealized_pnl_pct.toFixed(2)}%
+                    <div className="small muted" title="Brüt kâr/zarar, maliyetler hariç">
+                      brüt {formatSignedCurrency(position.unrealized_pnl_gross)}
                     </div>
+                  </td>
+                  <td className={"numeric " + pnlClass(position.price_change_pct)}>
+                    {position.price_change_pct > 0 ? "+" : ""}
+                    {position.price_change_pct.toFixed(2)}%
+                  </td>
+                  <td className={"numeric " + pnlClass(position.return_on_margin_pct)}>
+                    {position.return_on_margin_pct > 0 ? "+" : ""}
+                    {position.return_on_margin_pct.toFixed(1)}%
+                    <div className="small muted">{position.leverage.toFixed(0)}x</div>
                   </td>
                   <td>{formatDateTime(position.opened_at)}</td>
                   <td>
-                    <button
-                      type="button"
-                      className="btn btn-sm btn-danger"
-                      disabled={closeOne.isPending}
-                      onClick={() => closeOne.mutate(position.id)}
-                    >
-                      Close
-                    </button>
+                    <ClosePositionButton position={position} />
                   </td>
                 </tr>
               ))}
@@ -139,7 +151,7 @@ export function PositionsPage() {
       </Panel>
 
       {positions.length > 0 && (
-        <Panel title="Why was this position opened?">
+        <Panel title="Bu pozisyon neden açıldı?">
           <ul className="list-reset">
             {positions.map((position) => (
               <li key={position.uid} className="definition">

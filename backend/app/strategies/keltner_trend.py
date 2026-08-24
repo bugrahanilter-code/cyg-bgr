@@ -57,13 +57,13 @@ class KeltnerTrendStrategy(BaseStrategy):
     """Rides trends that push outside a Keltner channel."""
 
     key = "keltner_trend"
-    name = "Keltner Channel Trend"
+    name = "Keltner Kanal Trendi"
     family = "trend"
     risk_level = RiskLevel.SAFE
     description = (
-        "Enters only when price closes outside the Keltner channel with the "
-        "higher timeframe, trend strength and volume all agreeing, then holds "
-        "until price closes back through the middle line."
+        "Yalnızca fiyat Keltner kanalının dışında kapanırken üst zaman dilimi, trend "
+        "gücü ve hacim aynı anda onaylıyorsa girer; fiyat orta çizgiye geri kapanana "
+        "kadar tutar."
     )
     params_model = KeltnerTrendParams
 

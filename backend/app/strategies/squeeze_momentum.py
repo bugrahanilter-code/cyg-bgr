@@ -60,13 +60,13 @@ class SqueezeMomentumStrategy(BaseStrategy):
     """Trades the release of a volatility squeeze."""
 
     key = "squeeze_momentum"
-    name = "Squeeze Momentum"
+    name = "Sıkışma Momentumu"
     family = "breakout"
     risk_level = RiskLevel.RISKY
     description = (
-        "Waits for Bollinger bands to compress inside the Keltner channel, then "
-        "trades the direction of momentum when the squeeze releases. A squeeze "
-        "predicts movement, not direction."
+        "Bollinger bantları Keltner kanalının içine girdiğinde (sıkışma) bekler, "
+        "sıkışma çözüldüğünde momentum yönünde girer. Sıkışmanın ne zaman "
+        "çözüleceğini bilmez."
     )
     params_model = SqueezeMomentumParams
 

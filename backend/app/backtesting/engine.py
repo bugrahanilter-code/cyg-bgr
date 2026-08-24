@@ -36,6 +36,7 @@ from app.core.time_utils import from_ms
 from app.exchange.filters import SymbolFilters, default_filters_for
 from app.regime.engine import MarketRegimeEngine, RegimeResult
 from app.risk.config import RiskConfig
+from app.risk.exit_policy import resolve_exits, update_stop
 from app.risk.position_sizing import calculate_position_size
 from app.strategies.base import BaseStrategy
 from app.strategies.registry import create_strategy
@@ -251,7 +252,19 @@ class BacktestEngine:
                 )
                 if not blocked_reason and signal.entry_price and signal.stop_loss:
                     entry_fill = costs.fill_price(bar_open, signal.signal, is_entry=True)
-                    stop_loss = self._shift_stop(signal, bar_open, entry_fill)
+                    # The exit levels are decided by the same function the live
+                    # engine uses, so a stop rule changed in Risk Settings moves
+                    # the simulation and the real orders together.
+                    exits = resolve_exits(
+                        risk,
+                        side=signal.signal,
+                        entry_price=entry_fill,
+                        proposed_stop=self._shift_stop(signal, bar_open, entry_fill),
+                        proposed_take_profit=self._shift_target(signal, bar_open, entry_fill),
+                    )
+                    if not exits.valid:
+                        blocked_reason = exits.rejection or "exit levels rejected"
+                    stop_loss = exits.stop_loss
                     sizing = calculate_position_size(
                         equity=balance,
                         available_balance=balance,
@@ -267,10 +280,10 @@ class BacktestEngine:
                         margin_buffer_pct=risk.margin_buffer_pct,
                         taker_fee_pct=costs.taker_fee_pct,
                     )
-                    if sizing.valid:
+                    if sizing.valid and exits.valid:
                         entry_fee = costs.fee_for(sizing.notional)
                         balance -= entry_fee
-                        take_profit = self._shift_target(signal, bar_open, entry_fill)
+                        take_profit = exits.take_profit
                         position = _OpenTrade(
                             side=signal.signal,
                             quantity=sizing.quantity,
@@ -329,7 +342,7 @@ class BacktestEngine:
                         )
                         position.funding_paid += charge
                         position.last_funding_bucket = bucket
-                self._update_trailing_stop(position, bar_high, bar_low, bar_close)
+                self._update_trailing_stop(position, bar_high, bar_low, bar_close, risk)
 
             # --- 6. equity bookkeeping --------------------------------------
             equity = balance + self._unrealized(position, bar_close)
@@ -461,23 +474,45 @@ class BacktestEngine:
 
     @staticmethod
     def _update_trailing_stop(
-        position: _OpenTrade, bar_high: float, bar_low: float, bar_close: float
+        position: _OpenTrade,
+        bar_high: float,
+        bar_low: float,
+        bar_close: float,
+        risk_config,
     ) -> None:
-        if position.trailing_multiplier <= 0 or not position.atr:
-            return
-        distance = position.atr * position.trailing_multiplier
-        if position.side == SignalType.LONG:
-            position.extreme_price = max(position.extreme_price, bar_high)
-            candidate = position.extreme_price - distance
-            if position.trailing_stop is None or candidate > position.trailing_stop:
-                position.trailing_stop = max(candidate, position.stop_loss)
+        """Advance the stop using the shared exit policy.
+
+        The same function drives the live engine, so a trailing or break-even
+        rule set in Risk Settings produces the same behaviour in the simulation
+        and in real trading.
+        """
+        is_long = position.side == SignalType.LONG
+        if is_long:
+            position.extreme_price = max(position.extreme_price or bar_high, bar_high)
         else:
             position.extreme_price = (
                 min(position.extreme_price, bar_low) if position.extreme_price else bar_low
             )
-            candidate = position.extreme_price + distance
-            if position.trailing_stop is None or candidate < position.trailing_stop:
-                position.trailing_stop = min(candidate, position.stop_loss)
+
+        strategy_trail = (
+            position.atr * position.trailing_multiplier
+            if position.atr and position.trailing_multiplier > 0
+            else None
+        )
+        current = (
+            position.trailing_stop if position.trailing_stop is not None else position.stop_loss
+        )
+        updated, reason = update_stop(
+            risk_config,
+            side=position.side,
+            entry_price=position.entry_price,
+            current_stop=current,
+            risk_distance=abs(position.entry_price - position.stop_loss),
+            best_price=position.extreme_price,
+            strategy_trail=strategy_trail,
+        )
+        if reason is not None and updated != current:
+            position.trailing_stop = updated
 
     def _close(
         self,

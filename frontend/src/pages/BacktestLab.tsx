@@ -37,12 +37,12 @@ const RANGE_PRESETS: Array<{ label: string; days: number }> = [
 
 /** Plain-language explanation shown when hovering a metric. */
 const METRIC_HELP: Record<string, string> = {
-  total_return_pct: "Percentage change of the account over the whole period.",
-  net_pnl: "Money left after fees, funding and slippage were deducted.",
-  total_trades: "How many round trips the strategy took. Under 30 is noise.",
-  win_rate_pct: "Share of trades that ended in profit. A high win rate alone means nothing.",
-  profit_factor: "Gross profit divided by gross loss. Below 1 means it lost money.",
-  expectancy: "Average money made per trade after costs.",
+  total_return_pct: "Dönem boyunca hesabın yüzde değişimi.",
+  net_pnl: "Komisyon, funding ve kayma düşüldükten sonra kalan para.",
+  total_trades: "Stratejinin yaptığı alım-satım sayısı. Otuzun altı gürültüdür.",
+  win_rate_pct: "Kârla biten işlemlerin oranı. Yüksek kazanma oranı tek başına bir şey ifade etmez.",
+  profit_factor: "Brüt kâr bölü brüt zarar. Birin altı zarar demektir.",
+  expectancy: "Maliyet sonrası işlem başına ortalama kazanç.",
   max_drawdown_pct: "Worst fall from a peak. This is the pain you would have had to sit through.",
   sharpe_ratio: "Return per unit of total volatility. Higher is better, negative is bad.",
   sortino_ratio: "Like Sharpe but only counts downside volatility.",
@@ -173,7 +173,7 @@ function MetricGrid({ metrics }: { metrics: BacktestDetail["metrics"] }) {
         </span>
         <span title={help("total_trades")}>
           <StatCard
-            label="Trades"
+            label="İşlemler"
             value={value("total_trades")}
             hint={value("winning_trades") + " won / " + value("losing_trades") + " lost"}
           />
@@ -309,32 +309,28 @@ export function BacktestLabPage() {
 
   return (
     <>
-      <div className="page-header">
-        <div>
-          <h1>Backtest Lab</h1>
-          <p>
-            Test a strategy on real historical candles. Decisions are taken on closed candles
-            and filled at the next open with fees, funding and slippage, so the result is
-            deliberately pessimistic rather than flattering.
-          </p>
-        </div>
-        <Toggle
-          checked={advanced}
-          onChange={setAdvanced}
-          label={advanced ? "Advanced settings" : "Simple mode"}
-        />
-      </div>
-
       <Banner tone="warning">
-        A backtest describes the past. It is not a prediction and it is not a profit
-        guarantee. Tuning parameters until the curve looks good is called overfitting and it
-        is the fastest way to lose real money.
+        Backtest geçmişi anlatır. Tahmin değildir ve kâr garantisi vermez. Eğri güzel
+            görünene kadar parametre oynamaya aşırı uydurma (overfitting) denir ve gerçek para
+            kaybetmenin en hızlı yoludur.
       </Banner>
 
-      <Panel title="1. What do you want to test?">
+      <Panel
+        title="1. Neyi test etmek istiyorsunuz?"
+        actions={
+          <label className="checkbox-row">
+            <input
+              type="checkbox"
+              checked={advanced}
+              onChange={(event) => setAdvanced(event.target.checked)}
+            />
+            Gelişmiş ayarlar
+          </label>
+        }
+      >
         <div className="grid grid-3">
           <div className="field">
-            <label htmlFor="strategy">Strategy</label>
+            <label htmlFor="strategy">Strateji</label>
             <select
               id="strategy"
               value={form.strategy_key}
@@ -396,14 +392,14 @@ export function BacktestLabPage() {
                 </option>
               ))}
             </select>
-            <small>Smaller candles mean more trades and more cost.</small>
+            <small>Küçük mumlar daha çok işlem ve daha çok maliyet demektir.</small>
           </div>
         </div>
 
         {selected && <div className="small muted">{selected.description}</div>}
       </Panel>
 
-      <Panel title="2. Over which period?">
+      <Panel title="2. Hangi dönemde?">
         <div className="btn-row">
           {RANGE_PRESETS.map((preset) => (
             <button
@@ -461,7 +457,7 @@ export function BacktestLabPage() {
         >
           <div className="grid grid-4">
             <div className="field">
-              <label htmlFor="leverage">Leverage</label>
+              <label htmlFor="leverage">Kaldıraç</label>
               <input
                 id="leverage"
                 type="number"
@@ -558,7 +554,7 @@ export function BacktestLabPage() {
         </Panel>
       )}
 
-      <Panel title={advanced ? "4. Run it" : "3. Run it"}>
+      <Panel title={advanced ? "4. Çalıştır" : "3. Çalıştır"}>
         <div className="btn-row">
           <button
             type="button"
@@ -566,7 +562,7 @@ export function BacktestLabPage() {
             disabled={run.isPending}
             onClick={submit}
           >
-            {run.isPending ? "Running..." : "RUN BACKTEST"}
+            {run.isPending ? "Çalışıyor…" : "RUN BACKTEST"}
           </button>
           <button type="button" className="btn" onClick={() => setForm(INITIAL_FORM)}>
             Reset form
@@ -602,7 +598,7 @@ export function BacktestLabPage() {
           </Panel>
 
           <div className="grid grid-2">
-            <Panel title="Equity curve" subtitle="How the account would have developed">
+            <Panel title="Varlık eğrisi" subtitle="How the account would have developed">
               <LineAreaChart
                 data={result.equity_curve.map((point) => ({
                   time: point.timestamp_ms,
@@ -743,7 +739,7 @@ export function BacktestLabPage() {
               <thead>
                 <tr>
                   <th>Created</th>
-                  <th>Strategy</th>
+                  <th>Strateji</th>
                   <th>Market</th>
                   <th>Period</th>
                   <th>Status</th>

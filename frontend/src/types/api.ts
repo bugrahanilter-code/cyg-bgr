@@ -70,6 +70,20 @@ export interface PositionView {
   liquidation_price: number | null;
   unrealized_pnl: number;
   unrealized_pnl_pct: number;
+  /** Raw price difference, before any cost. */
+  unrealized_pnl_gross: number;
+  entry_fees_paid: number;
+  funding_paid: number;
+  estimated_exit_fee: number;
+  total_costs: number;
+  /** Price move still needed just to cover the round trip. */
+  breakeven_move_pct: number;
+  /** How far the market moved, ignoring leverage. */
+  price_change_pct: number;
+  /** What that move did to the margin committed. Leverage multiplies this. */
+  return_on_margin_pct: number;
+  /** Position value right now, in quote currency. */
+  current_notional: number;
   notional: number;
   opened_at: string;
   market_regime: string;
@@ -255,7 +269,22 @@ export interface RiskConfig {
   risk_per_trade_pct: number;
   max_position_notional_pct: number;
   max_total_exposure_pct: number;
+  min_leverage: number;
   max_leverage: number;
+  /** strategy | fixed_pct | bounded */
+  stop_loss_mode: string;
+  stop_loss_pct: number;
+  min_stop_distance_pct: number;
+  max_stop_distance_pct: number;
+  /** strategy | fixed_pct | risk_multiple | none */
+  take_profit_mode: string;
+  take_profit_pct: number;
+  take_profit_r_multiple: number;
+  min_risk_reward: number;
+  trailing_stop_enabled: boolean;
+  trailing_stop_pct: number;
+  trailing_start_r: number;
+  break_even_at_r: number;
   margin_buffer_pct: number;
   daily_profit_target_pct: number;
   daily_loss_limit_pct: number;
@@ -434,4 +463,342 @@ export interface SyncTopSymbolsResponse {
   added: string[];
   updated: string[];
   message: string;
+}
+
+// ---------------------------------------------------------------------------
+// Market browser (GET /markets/universe)
+// ---------------------------------------------------------------------------
+
+/**
+ * One market with its 24 hour statistics.
+ *
+ * Fields prefixed `tv_` come from the TradingView screener and are context for
+ * a human choosing what to trade. No strategy, risk check or order reads them.
+ */
+export interface MarketRow {
+  symbol: string;
+  base_asset: string;
+  quote_asset: string;
+  is_crypto: boolean;
+  last_price: number;
+  open_24h: number;
+  high_24h: number;
+  low_24h: number;
+  change_24h_pct: number;
+  change_24h_abs: number;
+  base_volume_24h: number;
+  quote_volume_24h: number;
+  weighted_average: number;
+  bid: number | null;
+  ask: number | null;
+  spread_pct: number | null;
+  range_position_pct: number | null;
+  maint_margin_pct: number | null;
+  /** Taker fee in and out, slippage in and out, plus the live spread. */
+  round_trip_cost_pct: number;
+  volume_rank: number;
+  /** crypto | commodity | forex. */
+  kind: string;
+  /** False for research-only markets no exchange here can fill. */
+  tradable: boolean;
+  /** True when this is one of the gold/FX reference markets. */
+  reference: boolean;
+  session: string;
+  history_source: string;
+  notes: string;
+  enabled: boolean;
+  in_database: boolean;
+  tv_symbol: string;
+  tv_rating: number | null;
+  tv_rating_label: string;
+  tv_rsi: number | null;
+  tv_atr: number | null;
+  tv_relative_volume: number | null;
+  tv_volatility_daily_pct: number | null;
+  atr_pct: number | null;
+}
+
+export interface SourceStatus {
+  ok: boolean;
+  markets: number;
+  error: string | null;
+}
+
+export interface UniverseResponse {
+  rows: MarketRow[];
+  total: number;
+  offset: number;
+  limit: number;
+  enabled_count: number;
+  known_count: number;
+  sources: Record<string, SourceStatus>;
+  age_seconds: number;
+  sortable_fields: string[];
+  note: string;
+}
+
+export interface CoverageEntry {
+  candles: number;
+  from: string | null;
+  to: string | null;
+}
+
+/** Extra metadata carried only by the gold and FX reference markets. */
+export interface ReferenceMarketInfo {
+  kind: string;
+  description: string;
+  session: string;
+  tradable: boolean;
+  history_source: string;
+  history_limits: Record<string, string>;
+  has_volume: boolean;
+  typical_round_trip_cost_pct: number;
+  notes: string;
+  /** Strategies gated on volume: they cannot produce a signal here at all. */
+  untestable_strategies: string[];
+  /** Strategies that still run but with one scoring input permanently zero. */
+  degraded_strategies: string[];
+}
+
+export interface MarketDetail {
+  market: MarketRow;
+  enabled: boolean;
+  in_database: boolean;
+  filters: Record<string, number | string | null> | null;
+  regime: Record<string, unknown> | null;
+  reference: ReferenceMarketInfo | null;
+  data_coverage: Record<string, CoverageEntry>;
+  live_price: number | null;
+}
+
+export interface SyncMarketsResponse {
+  added: string[];
+  updated: string[];
+  total_available: number;
+  message: string;
+}
+
+// ---------------------------------------------------------------------------
+// Matrix backtests (sweeps)
+// ---------------------------------------------------------------------------
+
+/** What a requested grid will cost before it is started. */
+export interface SweepEstimate {
+  cells: number;
+  strategies: number;
+  symbols: number;
+  timeframes: number;
+  total_candles: number;
+  bar_evaluations: number;
+  estimated_seconds: number;
+  estimated_minutes: number;
+  estimated_hours: number;
+  estimated_download_requests: number;
+  estimated_storage_mb: number;
+  warnings: string[];
+  symbols_preview?: string[];
+  symbol_count?: number;
+}
+
+export interface SweepSummary {
+  completed_cells: number;
+  cells_with_enough_trades: number;
+  profitable_cells: number;
+  profitable_pct: number;
+  beat_buy_and_hold: number;
+  beat_buy_and_hold_pct: number;
+  positive_expectancy_r_cells: number;
+  average_expectancy_r: number;
+  min_trades_for_inclusion: number;
+}
+
+/** One cell of the grid: one strategy on one market and timeframe. */
+export interface SweepRunRow {
+  id: number;
+  strategy_key: string;
+  symbol: string;
+  timeframe: string;
+  status: string;
+  total_trades: number;
+  net_pnl: number;
+  return_pct: number;
+  buy_hold_return_pct: number;
+  excess_return_pct: number;
+  win_rate_pct: number;
+  profit_factor: number;
+  sharpe_ratio: number;
+  sortino_ratio: number;
+  max_drawdown_pct: number;
+  expectancy: number;
+  expectancy_r: number;
+  total_fees: number;
+  candles_used: number;
+  duration_seconds: number;
+  error_message: string | null;
+}
+
+export interface SweepView {
+  id: number;
+  uid: string;
+  name: string;
+  status: string;
+  strategy_keys: string[];
+  symbols: string[];
+  timeframes: string[];
+  symbol_count: number;
+  start_date: string;
+  end_date: string;
+  starting_capital: number;
+  leverage: number;
+  cost_model: Record<string, number | boolean>;
+  total_runs: number;
+  completed_runs: number;
+  failed_runs: number;
+  skipped_runs: number;
+  finished_runs: number;
+  progress_pct: number;
+  current_task: string;
+  started_at: string | null;
+  completed_at: string | null;
+  duration_seconds: number;
+  error_message: string | null;
+  cancel_requested: boolean;
+  is_running: boolean;
+  leaderboard?: SweepRunRow[];
+  summary?: SweepSummary;
+}
+
+export interface SweepMatrixCell {
+  value: number | null;
+  cells: number;
+  trades: number;
+}
+
+export interface SweepMatrix {
+  metric: string;
+  rows: string[];
+  columns: string[];
+  cells: Record<string, Record<string, SweepMatrixCell>>;
+  min_trades: number;
+}
+
+export interface SweepOptions {
+  strategies: string[];
+  timeframes: string[];
+  symbol_sources: string[];
+  symbols_in_database: number;
+  enabled_symbols: string[];
+  throughput_bars_per_second: number;
+}
+
+export interface SweepResultsResponse {
+  rows: SweepRunRow[];
+  total: number;
+  offset: number;
+  limit: number;
+}
+
+// ---------------------------------------------------------------------------
+// Automatic rotation into the top 24 hour movers
+// ---------------------------------------------------------------------------
+export interface RotationConfig {
+  enabled: boolean;
+  dry_run: boolean;
+  top_n: number;
+  interval_minutes: number;
+  min_quote_volume_24h: number;
+  max_spread_pct: number;
+  min_listing_age_days: number;
+  max_change_24h_pct: number;
+  min_change_24h_pct: number;
+  cooldown_hours: number;
+  max_changes_per_run: number;
+}
+
+export interface RotationCandidate {
+  symbol: string;
+  rank?: number;
+  change_24h_pct: number;
+  quote_volume_24h: number;
+  spread_pct: number | null;
+  last_price?: number;
+}
+
+export interface RotationRejection {
+  symbol: string;
+  reason: string;
+  change_24h_pct: number | null;
+  quote_volume_24h: number | null;
+}
+
+export interface RotationRunView {
+  id: number;
+  ran_at: string;
+  dry_run: boolean;
+  triggered_by: string;
+  selected: RotationCandidate[];
+  added: string[];
+  removed: string[];
+  unchanged: string[];
+  /** Markets kept enabled because a position is still open on them. */
+  held_open: string[];
+  rejected: RotationRejection[];
+  candidates_considered: number;
+  enabled_after: number;
+  duration_seconds: number;
+  error_message: string | null;
+}
+
+export interface RotationPlan {
+  selected: RotationCandidate[];
+  rejected: RotationRejection[];
+  added: string[];
+  removed: string[];
+  held_open: string[];
+  unchanged: string[];
+  final_symbols: string[];
+  candidates_considered: number;
+  config: RotationConfig;
+  warning: string;
+}
+
+export interface RotationStatus {
+  config: RotationConfig;
+  defaults: RotationConfig;
+  enabled_symbols: string[];
+  last_run: RotationRunView | null;
+  history: RotationRunView[];
+  warning: string;
+}
+
+/** One strategy/timeframe combination aggregated across markets. */
+export interface SelectionCandidate {
+  strategy_key: string;
+  timeframe: string;
+  markets: number;
+  markets_profitable: number;
+  profitable_pct: number;
+  total_trades: number;
+  median_expectancy_r: number;
+  mean_expectancy_r: number;
+  median_profit_factor: number;
+  median_return_pct: number;
+  median_drawdown_pct: number;
+  median_excess_vs_hold_pct: number;
+  worst_market_return_pct: number;
+  passed: boolean;
+  failures: string[];
+}
+
+export interface SelectionResult {
+  sweep_id: number;
+  sweep_name: string;
+  verdict: "QUALIFIED" | "NO_QUALIFYING_COMBINATION";
+  winner: SelectionCandidate | null;
+  qualifying_count: number;
+  combinations_tested: number;
+  ranked: SelectionCandidate[];
+  selection_bias_note: string;
+  next_step: string;
+  validation_plan?: Record<string, unknown>;
 }

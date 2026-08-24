@@ -248,6 +248,122 @@ class PortfolioEngine:
         )
         return trade
 
+    def reduce_position(
+        self,
+        db: Session,
+        position: Position,
+        *,
+        quantity: float,
+        exit_price: float,
+        exit_reason: ExitReason | str,
+        exit_fees: float = 0.0,
+        slippage_cost: float = 0.0,
+        exit_order_id: str | None = None,
+        closed_at: datetime | None = None,
+        timeframe: str = "",
+    ) -> Trade:
+        """Close part of a position and leave the rest open.
+
+        The costs already carried by the position (entry fee, funding paid so
+        far, entry slippage) are split in proportion to the quantity being
+        closed. Charging them all to the first partial exit would make that
+        trade look far worse than it was and the remainder far better, and the
+        two halves of one position would stop adding up.
+
+        The remainder keeps its entry price, stop and target, so a later exit
+        is booked against the same levels it was opened on.
+        """
+        closed_at = closed_at or utcnow()
+        open_quantity = float(position.quantity)
+        quantity = min(abs(float(quantity)), open_quantity)
+        if quantity <= 0:
+            raise ValueError("The quantity to close must be greater than zero")
+
+        share = quantity / open_quantity if open_quantity > 0 else 1.0
+        entry_price = float(position.entry_price)
+
+        entry_fees = float(position.fees_paid or 0.0) * share
+        funding = float(position.funding_paid or 0.0) * share
+        entry_slippage = float(position.slippage_cost or 0.0) * share
+        margin_share = float(position.margin or 0.0) * share
+
+        fee_total = entry_fees + exit_fees
+        slippage_total = entry_slippage + slippage_cost
+        capital_base = margin_share or entry_price * quantity
+
+        breakdown = compute_trade_pnl(
+            side=position.side,
+            entry_price=entry_price,
+            exit_price=exit_price,
+            quantity=quantity,
+            fee_pct=0.0,
+            funding_paid=funding,
+            slippage=slippage_total,
+            capital_base=capital_base,
+        )
+        net = breakdown.gross - fee_total - funding
+        return_pct = (net / capital_base * 100.0) if capital_base > 0 else 0.0
+
+        trade = Trade(
+            uid=uuid.uuid4().hex[:24],
+            position_id=position.id,
+            exit_order_id=exit_order_id,
+            symbol=position.symbol,
+            strategy_key=position.strategy_key,
+            mode=self.mode.value,
+            timeframe=timeframe or str((position.meta or {}).get("timeframe", "")),
+            side=position.side,
+            quantity=quantity,
+            entry_price=entry_price,
+            exit_price=exit_price,
+            leverage=float(position.leverage or 1.0),
+            stop_loss=position.stop_loss,
+            take_profit=position.take_profit,
+            notional=entry_price * quantity,
+            opened_at=position.opened_at,
+            closed_at=closed_at,
+            duration_seconds=max(0, int((closed_at - position.opened_at).total_seconds())),
+            gross_pnl=breakdown.gross,
+            fees=fee_total,
+            funding=funding,
+            slippage_cost=slippage_total,
+            net_pnl=net,
+            return_pct=return_pct,
+            is_win=net > 0,
+            signal_confidence=float(position.signal_confidence or 0.0),
+            market_regime=position.market_regime,
+            entry_reason=position.entry_reason,
+            exit_reason=str(getattr(exit_reason, "value", exit_reason)),
+        )
+        db.add(trade)
+
+        # Shrink the position by exactly what was closed.
+        remaining = 1.0 - share
+        position.quantity = open_quantity - quantity
+        position.margin = float(position.margin or 0.0) * remaining
+        position.fees_paid = float(position.fees_paid or 0.0) * remaining
+        position.funding_paid = float(position.funding_paid or 0.0) * remaining
+        position.slippage_cost = float(position.slippage_cost or 0.0) * remaining
+        position.realized_pnl = float(position.realized_pnl or 0.0) + net
+
+        if self.mode != TradingMode.BACKTEST:
+            self._apply_balance_change(db, net)
+        self.record_daily_result(db, net, fees=fee_total, funding=funding, when=closed_at)
+
+        db.commit()
+        db.refresh(trade)
+        logger.info(
+            "Position partially closed",
+            extra={
+                "symbol": position.symbol,
+                "closed_quantity": quantity,
+                "remaining_quantity": float(position.quantity),
+                "net_pnl": round(net, 4),
+                "mode": self.mode.value,
+            },
+        )
+        return trade
+
     # -- account ------------------------------------------------------------
     def account_state(self, db: Session, price_lookup: PriceLookup | None = None) -> AccountState:
         """Balance, margin usage and unrealised PnL for this mode."""

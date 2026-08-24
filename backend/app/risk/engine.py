@@ -22,9 +22,15 @@ from app.core.constants import (
 from app.core.logging import get_logger
 from app.core.time_utils import utcnow
 from app.exchange.filters import SymbolFilters, default_filters_for
+from app.market_data import reference_markets
 from app.regime.engine import RegimeResult
 from app.risk.config import RiskConfig
-from app.risk.position_sizing import PositionSizing, calculate_position_size
+from app.risk.exit_policy import ExitLevels, resolve_exits
+from app.risk.position_sizing import (
+    PositionSizing,
+    calculate_position_size,
+    max_safe_leverage,
+)
 from app.signals.models import StrategySignal
 
 logger = get_logger(__name__)
@@ -106,6 +112,8 @@ class RiskDecision:
     rejections: list[RiskRejection] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     sizing: PositionSizing | None = None
+    #: The stop and target the exit policy decided, and what it changed.
+    exits: ExitLevels | None = None
 
     @property
     def codes(self) -> list[str]:
@@ -123,6 +131,7 @@ class RiskDecision:
             "rejections": [rejection.to_dict() for rejection in self.rejections],
             "warnings": self.warnings,
             "sizing": self.sizing.to_dict() if self.sizing else None,
+            "exits": self.exits.to_dict() if self.exits else None,
         }
 
 
@@ -230,6 +239,17 @@ class RiskEngine:
             self._reject(
                 decision, RiskRejectionCode.SYMBOL_DISABLED, f"{signal.symbol} is disabled"
             )
+        # Reference markets such as EUR/USD exist so the crypto results can be
+        # compared against a low-cost venue. Binance has no market for them, so
+        # an order could never be filled. Rejecting here means the request never
+        # reaches the Execution Engine, whatever a strategy or a misconfigured
+        # symbol list asks for.
+        if not reference_markets.is_tradable(signal.symbol):
+            self._reject(
+                decision,
+                RiskRejectionCode.SYMBOL_NOT_TRADABLE,
+                f"{signal.symbol} is a research-only market: no exchange can fill it",
+            )
         if not context.strategy_enabled:
             self._reject(
                 decision,
@@ -269,28 +289,87 @@ class RiskEngine:
                 f"{config.max_spread_pct} percent limit",
             )
 
-        leverage = min(max(context.leverage, 1.0), float(config.max_leverage))
-        if context.leverage > config.max_leverage:
+        # Clamp into the configured band, then never past what the exchange
+        # allows for this market. The exchange cap wins over the configured
+        # floor: raising leverage above what Binance permits would simply have
+        # the order rejected.
+        exchange_cap = float((context.filters or default_filters_for(signal.symbol)).max_leverage)
+        floor = min(float(config.min_leverage), exchange_cap)
+        ceiling = min(float(config.max_leverage), exchange_cap)
+        leverage = min(max(context.leverage, 1.0, floor), ceiling)
+
+        if context.leverage > ceiling:
+            decision.warnings.append(f"Leverage reduced from {context.leverage} to {ceiling:g}")
+        elif leverage > context.leverage:
             decision.warnings.append(
-                f"Leverage reduced from {context.leverage} to the configured maximum "
-                f"{config.max_leverage}"
+                f"Leverage raised from {context.leverage} to the configured minimum {leverage:g}"
+            )
+        if config.min_leverage > exchange_cap:
+            decision.warnings.append(
+                f"{signal.symbol} allows at most {exchange_cap:g}x, below the configured "
+                f"minimum of {config.min_leverage}x"
             )
 
-        if signal.entry_price is None or signal.stop_loss is None:
+        if signal.entry_price is None:
             self._reject(
                 decision,
                 RiskRejectionCode.INVALID_STOP_LOSS,
-                "The signal has no entry price or no stop loss",
+                "The signal has no entry price",
+            )
+            decision.approved = False
+            return decision
+
+        # The configured exit policy decides the final levels, using the same
+        # function the backtester calls. Sizing then works from the decided
+        # stop, so a widened stop produces a smaller position rather than a
+        # position sized against a stop that is no longer there.
+        exits = resolve_exits(
+            config,
+            side=signal.signal,
+            entry_price=signal.entry_price,
+            proposed_stop=signal.stop_loss,
+            proposed_take_profit=signal.take_profit,
+        )
+        decision.exits = exits
+        decision.warnings.extend(exits.adjustments)
+        if not exits.valid:
+            self._reject(
+                decision,
+                RiskRejectionCode.INVALID_STOP_LOSS,
+                exits.rejection or "The exit levels are not usable",
             )
             decision.approved = False
             return decision
 
         filters = context.filters or default_filters_for(signal.symbol)
+
+        # A stop is a price; leverage does not move it. Leverage moves the
+        # LIQUIDATION price, toward the entry. If the stop ends up beyond
+        # liquidation it can never be reached: the exchange closes the position
+        # first and takes the whole margin instead of the amount that was meant
+        # to be risked. Lowering leverage fixes that for free - quantity comes
+        # from the risk budget and the stop distance, not from leverage - so the
+        # position size and the risk at the stop are unchanged either way.
+        stop_distance_pct = exits.risk_distance / signal.entry_price * 100.0
+        safe_leverage = max_safe_leverage(stop_distance_pct, filters.maintenance_margin_rate)
+        if leverage > safe_leverage:
+            previous = leverage
+            leverage = max(1.0, min(leverage, safe_leverage))
+            decision.warnings.append(
+                f"Leverage reduced from {previous:g} to {leverage:.1f} so the "
+                f"{stop_distance_pct:.2f}% stop is reached before liquidation"
+            )
+        if leverage < config.min_leverage:
+            decision.warnings.append(
+                f"A {stop_distance_pct:.2f}% stop cannot be held safely at the configured "
+                f"minimum of {config.min_leverage}x, so {leverage:.1f}x is used instead"
+            )
+
         sizing = calculate_position_size(
             equity=context.equity,
             available_balance=context.available_balance,
             entry_price=signal.entry_price,
-            stop_loss=signal.stop_loss,
+            stop_loss=exits.stop_loss,
             side=signal.signal,
             filters=filters,
             risk_per_trade_pct=config.risk_per_trade_pct,

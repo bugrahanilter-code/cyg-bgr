@@ -38,13 +38,32 @@ export function riskTone(level: string): BadgeTone {
 
 /** Short plain-language explanation of a risk level. */
 export const RISK_LEVEL_HELP: Record<string, string> = {
-  safe: "Few trades, wide stops, trades with the trend. Slow and usually long-only.",
-  medium: "Standard systematic approach with trend and strength filters.",
-  risky: "Counter-trend, high frequency or direction-agnostic. Expect more losing trades.",
+  safe: "Az işlem, geniş stop, trend yönünde. Yavaş ve genelde sadece alış.",
+  medium: "Trend ve güç filtreleriyle standart sistematik yaklaşım.",
+  risky: "Trende karşı, yüksek frekanslı veya yön ayrımı yapmayan. Daha çok zararlı işlem bekleyin.",
 };
 
 export const RISK_LEVEL_LABEL: Record<string, string> = {
-  safe: "SAFE",
-  medium: "MEDIUM",
-  risky: "RISKY",
+  safe: "GÜVENLİ",
+  medium: "ORTA",
+  risky: "RİSKLİ",
+};
+
+/** Trading signal, in plain Turkish. */
+export const SIGNAL_LABEL: Record<string, string> = {
+  LONG: "AL",
+  SHORT: "SAT",
+  HOLD: "BEKLE",
+  CLOSE: "KAPAT",
+};
+
+/** Market regime, in plain Turkish. */
+export const REGIME_LABEL: Record<string, string> = {
+  TRENDING_UP: "Yükselen trend",
+  TRENDING_DOWN: "Düşen trend",
+  RANGING: "Yatay",
+  HIGH_VOLATILITY: "Yüksek oynaklık",
+  LOW_VOLATILITY: "Düşük oynaklık",
+  EXTREME_VOLATILITY: "Aşırı oynaklık",
+  UNKNOWN: "Bilinmiyor",
 };

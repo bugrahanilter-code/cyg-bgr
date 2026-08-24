@@ -55,13 +55,13 @@ class VolatilityBreakoutStrategy(BaseStrategy):
     """Intraday range breakout with a tight ATR stop."""
 
     key = "volatility_breakout"
-    name = "Volatility Breakout"
+    name = "Oynaklık Kırılımı"
     family = "breakout"
     risk_level = RiskLevel.RISKY
     description = (
-        "Trades a break of a fraction of the recent range projected from the "
-        "candle open. High frequency and tight stops: costs and false breaks "
-        "are its main enemies."
+        "Günlük açılışa ATR'nin bir katı eklenip çıkarılarak kurulan bantların "
+        "kırılmasında girer. Yön ayrımı yapmaz; sakin günlerde çok fazla yanlış "
+        "sinyal üretir."
     )
     params_model = VolatilityBreakoutParams
 

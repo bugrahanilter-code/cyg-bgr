@@ -56,20 +56,10 @@ export function TradesPage() {
 
   return (
     <>
-      <div className="page-header">
-        <div>
-          <h1>Trades</h1>
-          <p>
-            One row per completed round trip. Backtest, paper and live trades share the same
-            journal so the numbers are directly comparable.
-          </p>
-        </div>
-      </div>
-
-      <Panel title="Filters">
+      <Panel title="Filtreler">
         <div className="grid grid-4">
           <div className="field">
-            <label htmlFor="mode">Mode</label>
+            <label htmlFor="mode">Mod</label>
             <select
               id="mode"
               value={filters.mode ?? ""}
@@ -83,7 +73,7 @@ export function TradesPage() {
             </select>
           </div>
           <div className="field">
-            <label htmlFor="symbol">Symbol</label>
+            <label htmlFor="symbol">Market</label>
             <input
               id="symbol"
               type="text"
@@ -93,13 +83,13 @@ export function TradesPage() {
             />
           </div>
           <div className="field">
-            <label htmlFor="strategy">Strategy</label>
+            <label htmlFor="strategy">Strateji</label>
             <select
               id="strategy"
               value={filters.strategy ?? ""}
               onChange={(event) => update({ strategy: event.target.value || undefined })}
             >
-              <option value="">All</option>
+              <option value="">Hepsi</option>
               {(strategies.data ?? []).map((strategy) => (
                 <option key={strategy.key} value={strategy.key}>
                   {strategy.name}
@@ -108,7 +98,7 @@ export function TradesPage() {
             </select>
           </div>
           <div className="field">
-            <label htmlFor="side">Direction</label>
+            <label htmlFor="side">Yön</label>
             <select
               id="side"
               value={filters.side ?? ""}
@@ -122,7 +112,7 @@ export function TradesPage() {
             </select>
           </div>
           <div className="field">
-            <label htmlFor="result">Result</label>
+            <label htmlFor="result">Sonuç</label>
             <select
               id="result"
               value={filters.result ?? ""}
@@ -136,7 +126,7 @@ export function TradesPage() {
             </select>
           </div>
           <div className="field">
-            <label htmlFor="limit">Rows</label>
+            <label htmlFor="limit">Satır</label>
             <input
               id="limit"
               type="number"
@@ -151,12 +141,12 @@ export function TradesPage() {
 
       <div className="grid grid-4">
         <StatCard
-          label="Net PnL"
+          label="Net K/Z"
           value={formatSignedCurrency(totals.net)}
           tone={pnlClass(totals.net) as "positive" | "negative" | "neutral"}
         />
-        <StatCard label="Trades" value={trades.length} hint={totals.wins + "W / " + totals.losses + "L"} />
-        <StatCard label="Win rate" value={totals.winRate.toFixed(1) + "%"} />
+        <StatCard label="İşlem" value={trades.length} hint={totals.wins + "W / " + totals.losses + "L"} />
+        <StatCard label="Kazanma oranı" value={totals.winRate.toFixed(1) + "%"} />
         <StatCard
           label="Costs"
           value={formatCurrency(totals.fees + totals.funding)}
@@ -164,7 +154,7 @@ export function TradesPage() {
         />
       </div>
 
-      <Panel title="Trade journal">
+      <Panel title="İşlem defteri">
         {isLoading && !data ? (
           <Loading />
         ) : error ? (
@@ -174,29 +164,29 @@ export function TradesPage() {
             <table>
               <thead>
                 <tr>
-                  <th>Closed</th>
-                  <th>Mode</th>
-                  <th>Symbol</th>
-                  <th>Side</th>
-                  <th>Strategy</th>
-                  <th className="numeric">Size</th>
-                  <th className="numeric">Entry</th>
-                  <th className="numeric">Exit</th>
-                  <th className="numeric">Gross</th>
-                  <th className="numeric">Fees</th>
+                  <th>Kapanış</th>
+                  <th>Mod</th>
+                  <th>Market</th>
+                  <th>Yön</th>
+                  <th>Strateji</th>
+                  <th className="numeric">Miktar</th>
+                  <th className="numeric">Giriş</th>
+                  <th className="numeric">Çıkış</th>
+                  <th className="numeric">Brüt</th>
+                  <th className="numeric">Komisyon</th>
                   <th className="numeric">Funding</th>
                   <th className="numeric">Net</th>
-                  <th className="numeric">Return</th>
-                  <th>Duration</th>
-                  <th>Regime</th>
-                  <th>Exit reason</th>
+                  <th className="numeric">Getiri</th>
+                  <th>Süre</th>
+                  <th>Rejim</th>
+                  <th>Çıkış sebebi</th>
                 </tr>
               </thead>
               <tbody>
                 {trades.length === 0 && (
                   <tr>
                     <td colSpan={16} className="table-empty">
-                      No trades match these filters.
+                      Bu filtrelere uyan işlem yok.
                     </td>
                   </tr>
                 )}

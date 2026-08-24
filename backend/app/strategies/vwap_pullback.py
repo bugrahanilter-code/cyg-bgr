@@ -49,13 +49,13 @@ class VwapPullbackStrategy(BaseStrategy):
     """Buys dips to VWAP while the larger trend is intact."""
 
     key = "vwap_pullback"
-    name = "VWAP Trend Pullback"
+    name = "VWAP Geri Çekilme"
     family = "trend"
     risk_level = RiskLevel.SAFE
     description = (
-        "Waits for a pullback to the volume weighted average price inside an "
-        "established trend instead of chasing breakouts. Misses trends that "
-        "never pull back, and fails when a pullback becomes a reversal."
+        "Kırılım kovalamak yerine, kurulu bir trend içinde hacim ağırlıklı ortalama "
+        "fiyata geri çekilmeyi bekler. Hiç geri çekilmeyen trendleri kaçırır; geri "
+        "çekilme dönüşe dönerse zarar eder."
     )
     params_model = VwapPullbackParams
 

@@ -48,13 +48,13 @@ class DualMomentumStrategy(BaseStrategy):
     """Absolute momentum plus trend alignment."""
 
     key = "dual_momentum"
-    name = "Dual Momentum"
+    name = "Çifte Momentum"
     family = "momentum"
     risk_level = RiskLevel.SAFE
     description = (
-        "Holds only while the asset has positive momentum over a long lookback "
-        "and price is above its long-term average. Misses the first part of "
-        "every move and exits late, in exchange for far fewer bad trades."
+        "Yalnızca varlık uzun bir geriye bakışta pozitif momentuma sahipken ve fiyat "
+        "uzun vadeli ortalamasının üzerindeyken tutar. Her hareketin başını kaçırır "
+        "ve geç çıkar; karşılığında çok daha az kötü işlem yapar."
     )
     params_model = DualMomentumParams
 

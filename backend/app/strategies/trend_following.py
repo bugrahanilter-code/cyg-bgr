@@ -67,12 +67,12 @@ class TrendFollowingStrategy(BaseStrategy):
     """EMA stack + higher timeframe filter + momentum + ATR based risk."""
 
     key = "trend_following"
-    name = "Trend Following / Time Series Momentum"
+    name = "Trend Takibi"
     family = "trend"
     risk_level = RiskLevel.MEDIUM
     description = (
-        "Enters in the direction of an established trend confirmed on a higher "
-        "timeframe, sized and stopped by ATR. Performs poorly in sideways markets."
+        "Yüksek zaman diliminde doğrulanmış bir trendin yönünde işlem açar; boyut ve "
+        "stop ATR ile belirlenir. Yatay piyasada kötü performans gösterir."
     )
     params_model = TrendFollowingParams
 
