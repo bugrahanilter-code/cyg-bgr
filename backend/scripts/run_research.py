@@ -119,6 +119,8 @@ def build_request(
             max_consecutive_losses=args.max_consecutive_losses,
             max_concurrent_positions=3,
             max_leverage=max(args.leverage, 1),
+            max_drawdown_pct=args.max_drawdown,
+            cooldown_minutes=args.cooldown_minutes,
             min_signal_confidence=0.0,
         ),
         split=split,
@@ -318,7 +320,12 @@ def main() -> None:
     parser.add_argument("--daily-loss-limit", type=float, default=2.0)
     parser.add_argument("--daily-profit-target", type=float, default=100.0)
     parser.add_argument("--max-trades-per-day", type=int, default=20)
+    parser.add_argument("--cooldown-minutes", type=int, default=45)
     parser.add_argument("--max-consecutive-losses", type=int, default=3)
+    # A study must observe the whole period. The production config keeps the
+    # 15 percent account circuit breaker; halting the simulation on it would
+    # truncate every losing configuration and make comparisons meaningless.
+    parser.add_argument("--max-drawdown", type=float, default=95.0)
     parser.add_argument("--skip-optimisation", action="store_true")
     parser.add_argument("--output", default="research_report.json")
     args = parser.parse_args()

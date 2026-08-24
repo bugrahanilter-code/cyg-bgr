@@ -55,27 +55,60 @@ def simulate_portfolio(
         for trade in trades:
             entry = dict(trade)
             entry["symbol"] = symbol
+    """Merge per-market trades into one account and apply portfolio limits.
+
+    Each market was simulated on its own account, so the raw PnL figures cannot
+    simply be added up: nine accounts of 10,000 losing 90 percent each is not
+    one account losing 810 percent. Every trade is therefore replayed in
+    R-multiples - how many times the money it risked it made or lost - and
+    applied to the shared, compounding portfolio equity at the portfolio's own
+    risk per trade. That is the only way the numbers describe one account.
+    """
+    groups = correlation_groups or DEFAULT_CORRELATION_GROUPS
+
+    merged: list[dict[str, Any]] = []
+    for symbol, trades in trades_by_symbol.items():
+        for trade in trades:
+            entry = dict(trade)
+            entry["symbol"] = symbol
             merged.append(entry)
     merged.sort(key=lambda item: item["opened_ms"])
 
     equity = starting_capital
     open_positions: list[dict[str, Any]] = []
     accepted: list[dict[str, Any]] = []
+    realised: list[float] = []
     equity_curve: list[dict[str, Any]] = [{"time_ms": 0, "equity": equity}]
-    skipped = {"max_positions": 0, "portfolio_risk": 0, "correlation": 0}
+    skipped = {"max_positions": 0, "portfolio_risk": 0, "correlation": 0, "account_wiped": 0}
+
+    def _r_multiple(trade: dict[str, Any]) -> float:
+        """How many times the risked amount the trade returned."""
+        stored = trade.get("r_multiple")
+        if stored is not None:
+            return float(stored)
+        risk = float(trade.get("risk_amount") or 0.0)
+        return float(trade["net_pnl"]) / risk if risk > 0 else 0.0
+
+    def _settle(position: dict[str, Any]) -> None:
+        nonlocal equity
+        pnl = _r_multiple(position) * (risk_per_trade_pct / 100.0) * position["_equity_at_entry"]
+        equity += pnl
+        realised.append(pnl)
+        equity_curve.append({"time_ms": position["closed_ms"], "equity": equity})
 
     for trade in merged:
         opened = trade["opened_ms"]
-        # Close everything that finished before this trade opens.
         still_open = []
         for position in open_positions:
             if position["closed_ms"] <= opened:
-                equity += position["net_pnl"]
-                equity_curve.append({"time_ms": position["closed_ms"], "equity": equity})
+                _settle(position)
             else:
                 still_open.append(position)
         open_positions = still_open
 
+        if equity <= 0:
+            skipped["account_wiped"] += 1
+            continue
         if len(open_positions) >= max_open_positions:
             skipped["max_positions"] += 1
             continue
@@ -93,21 +126,20 @@ def simulate_portfolio(
             skipped["portfolio_risk"] += 1
             continue
 
+        trade["_equity_at_entry"] = equity
         open_positions.append(trade)
         accepted.append(trade)
 
     for position in sorted(open_positions, key=lambda item: item["closed_ms"]):
-        equity += position["net_pnl"]
-        equity_curve.append({"time_ms": position["closed_ms"], "equity": equity})
+        _settle(position)
 
     values = [point["equity"] for point in equity_curve]
     drawdown = drawdown_series(values)
-    net_values = [trade["net_pnl"] for trade in accepted]
+    net_values = realised
     wins = [value for value in net_values if value > 0]
     losses = [value for value in net_values if value <= 0]
     gross_profit = sum(wins)
     gross_loss = abs(sum(losses))
-
     return {
         "starting_capital": starting_capital,
         "final_balance": equity,

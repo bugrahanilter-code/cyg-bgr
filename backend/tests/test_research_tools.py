@@ -36,8 +36,16 @@ def test_monte_carlo_is_reproducible() -> None:
     assert first["median_return_pct"] == second["median_return_pct"]
 
 
-def _trade(symbol: str, opened: int, closed: int, pnl: float) -> dict:
-    return {"symbol": symbol, "opened_ms": opened, "closed_ms": closed, "net_pnl": pnl}
+def _trade(symbol: str, opened: int, closed: int, r_multiple: float) -> dict:
+    """A closed trade expressed in R-multiples, which is how a portfolio replays it."""
+    return {
+        "symbol": symbol,
+        "opened_ms": opened,
+        "closed_ms": closed,
+        "net_pnl": r_multiple * 100.0,
+        "risk_amount": 100.0,
+        "r_multiple": r_multiple,
+    }
 
 
 def test_portfolio_caps_concurrent_positions() -> None:
@@ -76,20 +84,45 @@ def test_portfolio_caps_correlated_positions() -> None:
     assert result["signals_skipped"]["correlation"] == 1
 
 
-def test_portfolio_accounts_for_sequential_trades() -> None:
-    """Trades that do not overlap should all be taken."""
+def test_portfolio_compounds_r_multiples_on_one_account() -> None:
+    """Non-overlapping trades are all taken and compound on shared equity."""
     trades = {
         "BTC/USDT": [
-            _trade("BTC/USDT", 0, 10, 100.0),
-            _trade("BTC/USDT", 20, 30, -50.0),
-            _trade("BTC/USDT", 40, 50, 25.0),
+            _trade("BTC/USDT", 0, 10, 2.0),
+            _trade("BTC/USDT", 20, 30, -1.0),
+            _trade("BTC/USDT", 40, 50, 1.0),
         ]
     }
-    result = simulate_portfolio(trades, starting_capital=1_000.0)
+    result = simulate_portfolio(trades, starting_capital=10_000.0, risk_per_trade_pct=1.0)
+    # +2R on 1 percent risk, then -1R, then +1R, each on the running equity.
+    expected = 10_000.0
+    expected += 2.0 * 0.01 * expected
+    expected += -1.0 * 0.01 * expected
+    expected += 1.0 * 0.01 * expected
+
     assert result["total_trades"] == 3
-    assert result["net_pnl"] == pytest.approx(75.0)
-    assert result["final_balance"] == pytest.approx(1_075.0)
+    assert result["final_balance"] == pytest.approx(expected)
     assert result["win_rate_pct"] == pytest.approx(66.667, abs=0.01)
+
+
+def test_portfolio_does_not_add_up_separate_accounts() -> None:
+    """Regression test for a genuinely wrong number.
+
+    Each market is simulated on its own account. Adding those PnL figures up
+    made nine accounts losing 90 percent look like one account losing 810
+    percent, which is impossible. Replaying in R-multiples keeps the loss on
+    one account inside the only range it can be.
+    """
+    losing_run = [_trade("BTC/USDT", i * 100, i * 100 + 50, -1.0) for i in range(60)]
+    second_market = [_trade("XRP/USDT", i * 100 + 10, i * 100 + 60, -1.0) for i in range(60)]
+    result = simulate_portfolio(
+        {"BTC/USDT": losing_run, "XRP/USDT": second_market},
+        starting_capital=10_000.0,
+        risk_per_trade_pct=1.0,
+    )
+    assert result["total_return_pct"] > -100.0
+    assert result["final_balance"] > 0.0
+    assert result["max_drawdown_pct"] <= 100.0
 
 
 def test_buy_and_hold_benchmark() -> None:

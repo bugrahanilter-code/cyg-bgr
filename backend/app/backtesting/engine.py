@@ -90,6 +90,9 @@ class _OpenTrade:
     margin: float
     leverage: float
     entry_fee: float
+    #: Money at stake if the stop is hit. Lets a portfolio replay the trade in
+    #: R-multiples on a different account size.
+    risk_amount: float
     entry_slippage: float
     opened_ms: int
     entry_index: int
@@ -164,6 +167,7 @@ class BacktestEngine:
         daily_realized = 0.0
         trades_today = 0
         consecutive_losses = 0
+        last_loss_ms = 0
         blocked_reason = ""
 
         last_index = len(frame) - 1
@@ -188,6 +192,12 @@ class BacktestEngine:
                 daily_realized = 0.0
                 trades_today = 0
                 blocked_reason = ""
+                # The live Risk Engine reads the streak from that day's
+                # statistics row, so a new UTC day starts it at zero. Without
+                # the same reset here the backtester blocks permanently after
+                # the first losing streak and reports a handful of trades over
+                # two years, which is not what the live system would do.
+                consecutive_losses = 0
 
             regime = self.regime_engine.result_at(annotated_rows, index)
             position_side = position.side.value if position else None
@@ -209,6 +219,7 @@ class BacktestEngine:
                 trades.append(trade)
                 daily_realized += trade["net_pnl"]
                 consecutive_losses = 0 if trade["net_pnl"] > 0 else consecutive_losses + 1
+                last_loss_ms = bar_ms if trade["net_pnl"] <= 0 else last_loss_ms
                 position = None
 
             # --- 2. reversal: close the opposite position first ------------
@@ -220,6 +231,7 @@ class BacktestEngine:
                 trades.append(trade)
                 daily_realized += trade["net_pnl"]
                 consecutive_losses = 0 if trade["net_pnl"] > 0 else consecutive_losses + 1
+                last_loss_ms = bar_ms if trade["net_pnl"] <= 0 else last_loss_ms
                 position = None
 
             # --- 3. entry ---------------------------------------------------
@@ -230,6 +242,8 @@ class BacktestEngine:
                     day_start_equity=day_start_equity,
                     trades_today=trades_today,
                     consecutive_losses=consecutive_losses,
+                    bar_ms=bar_ms,
+                    last_loss_ms=last_loss_ms,
                     equity=balance,
                     peak_equity=peak_equity,
                     signal_confidence=signal.confidence,
@@ -268,6 +282,7 @@ class BacktestEngine:
                             leverage=sizing.leverage,
                             entry_fee=entry_fee,
                             entry_slippage=abs(entry_fill - bar_open) * sizing.quantity,
+                            risk_amount=sizing.risk_amount,
                             opened_ms=bar_ms,
                             entry_index=execution_index,
                             entry_reason=signal.explanation,
@@ -294,6 +309,7 @@ class BacktestEngine:
                     trades.append(trade)
                     daily_realized += trade["net_pnl"]
                     consecutive_losses = 0 if trade["net_pnl"] > 0 else consecutive_losses + 1
+                    last_loss_ms = bar_ms if trade["net_pnl"] <= 0 else last_loss_ms
                     position = None
 
             # --- 5. funding and trailing stop -------------------------------
@@ -512,6 +528,8 @@ class BacktestEngine:
             "net_pnl": net,
             "return_pct": (net / capital_base * 100.0) if capital_base > 0 else 0.0,
             "equity_after": new_balance,
+            "risk_amount": position.risk_amount,
+            "r_multiple": (net / position.risk_amount) if position.risk_amount > 0 else 0.0,
             "is_win": net > 0,
             "signal_confidence": position.confidence,
             "market_regime": position.regime,
@@ -528,6 +546,8 @@ class BacktestEngine:
         day_start_equity: float,
         trades_today: int,
         consecutive_losses: int,
+        bar_ms: int,
+        last_loss_ms: int,
         equity: float,
         peak_equity: float,
         signal_confidence: float,
@@ -551,6 +571,15 @@ class BacktestEngine:
             return "maximum trades per day reached"
         if consecutive_losses >= risk.max_consecutive_losses:
             return "maximum consecutive losses reached"
+        if (
+            risk.cooldown_minutes > 0
+            and last_loss_ms > 0
+            and bar_ms < last_loss_ms + risk.cooldown_minutes * 60_000
+        ):
+            # Mirrors RiskEngine._in_cooldown: after a loss the platform waits
+            # before re-entering, which is what stops it from revenge trading
+            # the same setup straight after being stopped out.
+            return "cooldown after a losing trade"
         if peak_equity > 0:
             drawdown = (peak_equity - equity) / peak_equity * 100.0
             if drawdown >= risk.max_drawdown_pct:

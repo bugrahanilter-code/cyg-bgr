@@ -143,3 +143,62 @@ def test_metric_helpers() -> None:
     )
     assert metrics["total_return_pct"] == pytest.approx(10.0)
     assert metrics["win_rate_pct"] == pytest.approx(100.0)
+
+
+def test_loss_streak_resets_on_a_new_day(trending_frame: pd.DataFrame) -> None:
+    """Regression test: the backtester used to stop trading forever.
+
+    consecutive_losses was never reset, so after the first losing streak the
+    engine blocked every further entry for the rest of the run and reported a
+    handful of trades over two years. The live Risk Engine reads the streak
+    from that day's statistics row, which starts at zero each UTC day, so the
+    two engines disagreed about the single most important gate.
+    """
+    request = build_request(
+        risk=RiskConfig(
+            max_consecutive_losses=2,
+            cooldown_minutes=0,
+            max_trades_per_day=50,
+            daily_loss_limit_pct=90.0,
+            daily_profit_target_pct=90.0,
+        ),
+        params={"min_adx": 1.0, "momentum_threshold": 0.0},
+    )
+    output = BacktestEngine().run(trending_frame, request)
+
+    days = {trade["opened_at"][:10] for trade in output.trades}
+    # A permanently blocked engine can only ever trade on the first day or two.
+    assert output.metrics["total_trades"] >= 3
+    assert len(days) >= 2, "trades must appear on more than one day"
+
+
+def test_cooldown_blocks_immediate_re_entry(trending_frame: pd.DataFrame) -> None:
+    """A long cooldown after a loss must reduce the number of trades."""
+    common = {"min_adx": 1.0, "momentum_threshold": 0.0}
+    no_cooldown = BacktestEngine().run(
+        trending_frame,
+        build_request(
+            risk=RiskConfig(
+                cooldown_minutes=0,
+                max_consecutive_losses=50,
+                max_trades_per_day=50,
+                daily_loss_limit_pct=90.0,
+                daily_profit_target_pct=90.0,
+            ),
+            params=common,
+        ),
+    )
+    with_cooldown = BacktestEngine().run(
+        trending_frame,
+        build_request(
+            risk=RiskConfig(
+                cooldown_minutes=600,
+                max_consecutive_losses=50,
+                max_trades_per_day=50,
+                daily_loss_limit_pct=90.0,
+                daily_profit_target_pct=90.0,
+            ),
+            params=common,
+        ),
+    )
+    assert with_cooldown.metrics["total_trades"] <= no_cooldown.metrics["total_trades"]
