@@ -14,7 +14,7 @@ import type {
   PositionView,
   RiskConfig,
   SettingsResponse,
-  SignalPayload,
+  SignalRecord,
   StrategySummary,
   SystemEvent,
   TradeView,
@@ -66,7 +66,7 @@ export const tradeService = {
   list: (filters: TradeFilters = {}) =>
     api.get<TradeView[]>("/trades", { ...filters }),
   signals: (limit = 50, mode?: string) =>
-    api.get<SignalPayload[]>("/signals", { limit, mode }),
+    api.get<SignalRecord[]>("/signals", { limit, mode }),
 };
 
 // ---------------------------------------------------------------------------

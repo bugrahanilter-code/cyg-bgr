@@ -386,3 +386,28 @@ export interface LiveChecklist {
   items: Array<{ key: string; label: string; done: boolean }>;
   warning: string;
 }
+
+/** A signal row as stored in the database (returned by GET /signals). */
+export interface SignalRecord {
+  id: number;
+  uid: string;
+  symbol: string;
+  strategy_key: string;
+  timeframe: string;
+  mode: TradingMode;
+  candle_open_time: number;
+  signal_type: SignalType;
+  confidence: number;
+  market_regime: string;
+  trend_regime: string;
+  volatility_regime: string;
+  entry_price: number | null;
+  stop_loss: number | null;
+  take_profit: number | null;
+  explanation: string;
+  indicators: Record<string, number | null>;
+  status: string;
+  rejection_codes: string[];
+  rejection_details: string;
+  created_at: string;
+}
