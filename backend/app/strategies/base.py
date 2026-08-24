@@ -19,7 +19,7 @@ from typing import Any
 import pandas as pd
 from pydantic import BaseModel
 
-from app.core.constants import SignalType, timeframe_to_ms
+from app.core.constants import RiskLevel, SignalType, timeframe_to_ms
 from app.core.exceptions import StrategyError
 from app.indicators import ema, safe_float
 from app.regime.engine import RegimeResult
@@ -53,6 +53,8 @@ class BaseStrategy(ABC):
     key: str = "base"
     name: str = "Base strategy"
     family: str = "generic"
+    #: How aggressive the strategy is. Shown in the dashboard before enabling.
+    risk_level: RiskLevel = RiskLevel.MEDIUM
     description: str = ""
     params_model: type[BaseModel] = BaseModel
 

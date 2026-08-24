@@ -16,7 +16,7 @@ from typing import Any
 import pandas as pd
 from pydantic import BaseModel, Field
 
-from app.core.constants import SignalType
+from app.core.constants import RiskLevel, SignalType
 from app.indicators import adx, atr, ema, rate_of_change, safe_float
 from app.regime.engine import RegimeResult
 from app.signals.models import StrategySignal
@@ -69,6 +69,7 @@ class TrendFollowingStrategy(BaseStrategy):
     key = "trend_following"
     name = "Trend Following / Time Series Momentum"
     family = "trend"
+    risk_level = RiskLevel.MEDIUM
     description = (
         "Enters in the direction of an established trend confirmed on a higher "
         "timeframe, sized and stopped by ATR. Performs poorly in sideways markets."

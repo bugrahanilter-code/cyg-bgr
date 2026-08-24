@@ -69,6 +69,12 @@ class Settings(BaseSettings):
     #: live trading from the dashboard (two-step activation).
     live_trading_enabled: bool = False
     enabled_symbols: str = "BTC/USDT,ETH/USDT"
+    #: Markets that are created in the database so the user can switch them on.
+    #: Refreshed live from Binance with POST /api/exchange/symbols/sync-top.
+    available_symbols: str = (
+        "BTC/USDT,ETH/USDT,SOL/USDT,XRP/USDT,BNB/USDT,"
+        "DOGE/USDT,ZEC/USDT,HYPE/USDT,TRUMP/USDT,ENA/USDT"
+    )
     quote_currency: str = "USDT"
     default_timeframe: str = "15m"
     higher_timeframe: str = "4h"
@@ -128,6 +134,16 @@ class Settings(BaseSettings):
     @property
     def enabled_symbol_list(self) -> list[str]:
         return [s.upper() for s in _split_csv(self.enabled_symbols)]
+
+    @property
+    def available_symbol_list(self) -> list[str]:
+        """Markets seeded into the database, enabled or not."""
+        merged = _split_csv(self.available_symbols) + _split_csv(self.enabled_symbols)
+        seen: list[str] = []
+        for symbol in (item.upper() for item in merged):
+            if symbol not in seen:
+                seen.append(symbol)
+        return seen
 
     @property
     def is_futures(self) -> bool:

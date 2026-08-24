@@ -7,6 +7,7 @@
  */
 
 export type TradingMode = "backtest" | "paper" | "live";
+export type RiskLevel = "safe" | "medium" | "risky";
 export type SignalType = "LONG" | "SHORT" | "HOLD" | "CLOSE";
 export type HealthStatus = "OK" | "DEGRADED" | "DOWN" | "UNKNOWN";
 export type EmergencyStopLevel =
@@ -165,6 +166,7 @@ export interface StrategySummary {
   key: string;
   name: string;
   family: string;
+  risk_level: RiskLevel;
   description: string;
   enabled: boolean;
   params: Record<string, unknown>;
@@ -410,4 +412,26 @@ export interface SignalRecord {
   rejection_codes: string[];
   rejection_details: string;
   created_at: string;
+}
+
+/** A market ranked by 24 hour volume (GET /exchange/top-symbols). */
+export interface TopSymbol {
+  symbol: string;
+  base_asset: string;
+  quote_asset: string;
+  quote_volume_24h: number;
+  last_price: number;
+  change_24h_pct: number;
+}
+
+export interface TopSymbolResponse {
+  symbols: TopSymbol[];
+  note: string;
+}
+
+export interface SyncTopSymbolsResponse {
+  discovered: TopSymbol[];
+  added: string[];
+  updated: string[];
+  message: string;
 }

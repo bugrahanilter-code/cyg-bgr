@@ -12,7 +12,7 @@ import { REFRESH_SLOW, useApiMutation, useOnceQuery, usePolledQuery } from "@/ho
 import { backtestService, settingsService, strategyService } from "@/services/tradingService";
 import type { BacktestRunPayload } from "@/services/tradingService";
 import { useAppState } from "@/state/appStateContext";
-import type { BacktestDetail } from "@/types/api";
+import type { BacktestDetail, StrategySummary } from "@/types/api";
 import {
   daysAgoIso,
   formatCurrency,
@@ -24,9 +24,34 @@ import {
   titleCase,
   toIsoDate,
 } from "@/utils/format";
-import { sideTone } from "@/utils/tone";
+import { RISK_LEVEL_HELP, RISK_LEVEL_LABEL, riskTone, sideTone } from "@/utils/tone";
 
 const TIMEFRAMES = ["5m", "15m", "30m", "1h", "4h", "1d"];
+
+const RANGE_PRESETS: Array<{ label: string; days: number }> = [
+  { label: "Last 30 days", days: 30 },
+  { label: "Last 90 days", days: 90 },
+  { label: "Last 6 months", days: 182 },
+  { label: "Last year", days: 365 },
+];
+
+/** Plain-language explanation shown when hovering a metric. */
+const METRIC_HELP: Record<string, string> = {
+  total_return_pct: "Percentage change of the account over the whole period.",
+  net_pnl: "Money left after fees, funding and slippage were deducted.",
+  total_trades: "How many round trips the strategy took. Under 30 is noise.",
+  win_rate_pct: "Share of trades that ended in profit. A high win rate alone means nothing.",
+  profit_factor: "Gross profit divided by gross loss. Below 1 means it lost money.",
+  expectancy: "Average money made per trade after costs.",
+  max_drawdown_pct: "Worst fall from a peak. This is the pain you would have had to sit through.",
+  sharpe_ratio: "Return per unit of total volatility. Higher is better, negative is bad.",
+  sortino_ratio: "Like Sharpe but only counts downside volatility.",
+  calmar_ratio: "Annual return divided by the worst drawdown.",
+  max_consecutive_losses: "Longest run of losing trades in a row.",
+  total_fees: "Exchange commission paid over the whole test.",
+  total_funding: "Perpetual funding paid while positions were open.",
+  total_slippage: "Cost of filling at a worse price than the decision price.",
+};
 
 interface FormState {
   strategy_key: string;
@@ -49,7 +74,7 @@ const INITIAL_FORM: FormState = {
   strategy_key: "trend_following",
   symbol: "BTC/USDT",
   timeframe: "15m",
-  start: daysAgoIso(120),
+  start: daysAgoIso(90),
   end: toIsoDate(new Date()),
   starting_capital: 10000,
   leverage: 2,
@@ -62,62 +87,158 @@ const INITIAL_FORM: FormState = {
   walk_forward_folds: 4,
 };
 
+/** Plain-language verdict so the numbers cannot be misread. */
+function Verdict({ result }: { result: BacktestDetail }) {
+  const metrics = result.metrics;
+  const trades = Number(metrics.total_trades ?? 0);
+  const netPnl = Number(metrics.net_pnl ?? 0);
+  const returnPct = Number(metrics.total_return_pct ?? 0);
+  const drawdown = Number(metrics.max_drawdown_pct ?? 0);
+  const costs =
+    Number(metrics.total_fees ?? 0) +
+    Number(metrics.total_funding ?? 0) +
+    Number(metrics.total_slippage ?? 0);
+  const grossPnl = Number(metrics.gross_pnl ?? 0);
+
+  if (trades === 0) {
+    return (
+      <Banner tone="warning">
+        <div>
+          <strong>No trades were taken.</strong> The filters of this strategy never lined up
+          during this period. Try a longer date range, a different timeframe, or loosen the
+          strategy parameters. This is not a failure: standing aside is a valid outcome.
+        </div>
+      </Banner>
+    );
+  }
+
+  const profitable = netPnl > 0;
+  const tone = profitable ? (trades < 30 ? "warning" : "success") : "danger";
+  const costShare = Math.abs(grossPnl) > 0 ? (costs / Math.abs(grossPnl)) * 100 : 0;
+
+  return (
+    <Banner tone={tone}>
+      <div>
+        <strong>
+          {profitable ? "Made" : "Lost"} {formatSignedCurrency(netPnl)} ({formatPercent(returnPct)})
+          over {trades} trade{trades === 1 ? "" : "s"}.
+        </strong>{" "}
+        The worst drawdown along the way was {drawdown.toFixed(2)} percent, and{" "}
+        {formatCurrency(costs)} went to fees, funding and slippage
+        {costShare > 0 ? " (" + costShare.toFixed(0) + " percent of the gross result)" : ""}.
+        {trades < 30 && (
+          <div style={{ marginTop: 6 }}>
+            With fewer than 30 trades this result is statistical noise. It tells you almost
+            nothing about the future, whichever direction it points.
+          </div>
+        )}
+        {result.walk_forward === null && trades >= 30 && (
+          <div style={{ marginTop: 6 }}>
+            Turn on walk-forward analysis to see whether this holds up on data the parameters
+            were not chosen on.
+          </div>
+        )}
+      </div>
+    </Banner>
+  );
+}
+
 function MetricGrid({ metrics }: { metrics: BacktestDetail["metrics"] }) {
   const value = (key: string): number => Number(metrics[key] ?? 0);
   const optional = (key: string): string => {
     const raw = metrics[key];
     return raw === null || raw === undefined ? "-" : Number(raw).toFixed(2);
   };
+  const help = (key: string) => METRIC_HELP[key] ?? "";
 
   return (
-    <div className="grid grid-4">
-      <StatCard
-        label="Total return"
-        value={formatPercent(value("total_return_pct"))}
-        tone={pnlClass(value("total_return_pct")) as "positive" | "negative" | "neutral"}
-        hint={"Final balance " + formatCurrency(value("final_balance"))}
-      />
-      <StatCard
-        label="Net PnL"
-        value={formatSignedCurrency(value("net_pnl"))}
-        tone={pnlClass(value("net_pnl")) as "positive" | "negative" | "neutral"}
-        hint={"Gross " + formatSignedCurrency(value("gross_pnl"))}
-      />
-      <StatCard
-        label="Trades"
-        value={value("total_trades")}
-        hint={value("winning_trades") + "W / " + value("losing_trades") + "L"}
-      />
-      <StatCard label="Win rate" value={value("win_rate_pct").toFixed(1) + "%"} />
-      <StatCard label="Profit factor" value={optional("profit_factor")} />
-      <StatCard label="Expectancy" value={formatCurrency(value("expectancy"))} />
-      <StatCard
-        label="Max drawdown"
-        value={formatPercent(-value("max_drawdown_pct"))}
-        tone="warning"
-      />
-      <StatCard label="Sharpe" value={optional("sharpe_ratio")} />
-      <StatCard label="Sortino" value={optional("sortino_ratio")} />
-      <StatCard label="Calmar" value={optional("calmar_ratio")} />
-      <StatCard
-        label="Max consecutive losses"
-        value={value("max_consecutive_losses")}
-        hint={"Longest win streak " + value("max_consecutive_wins")}
-      />
-      <StatCard
-        label="Average trade"
-        value={(value("average_trade_duration_seconds") / 3600).toFixed(1) + "h"}
-        hint={value("exposure_trades_per_day").toFixed(2) + " trades/day"}
-      />
-      <StatCard label="Fees" value={formatCurrency(value("total_fees"))} />
-      <StatCard label="Funding" value={formatCurrency(value("total_funding"))} />
-      <StatCard label="Slippage" value={formatCurrency(value("total_slippage"))} />
-      <StatCard
-        label="Average win / loss"
-        value={formatCurrency(value("average_win"))}
-        hint={"Average loss " + formatCurrency(value("average_loss"))}
-      />
-    </div>
+    <>
+      <div className="panel-subtitle">Headline</div>
+      <div className="grid grid-4">
+        <span title={help("total_return_pct")}>
+          <StatCard
+            label="Total return"
+            value={formatPercent(value("total_return_pct"))}
+            tone={pnlClass(value("total_return_pct")) as "positive" | "negative" | "neutral"}
+            hint={"Final balance " + formatCurrency(value("final_balance"))}
+          />
+        </span>
+        <span title={help("net_pnl")}>
+          <StatCard
+            label="Net PnL"
+            value={formatSignedCurrency(value("net_pnl"))}
+            tone={pnlClass(value("net_pnl")) as "positive" | "negative" | "neutral"}
+            hint={"Gross " + formatSignedCurrency(value("gross_pnl"))}
+          />
+        </span>
+        <span title={help("total_trades")}>
+          <StatCard
+            label="Trades"
+            value={value("total_trades")}
+            hint={value("winning_trades") + " won / " + value("losing_trades") + " lost"}
+          />
+        </span>
+        <span title={help("max_drawdown_pct")}>
+          <StatCard
+            label="Max drawdown"
+            value={formatPercent(-value("max_drawdown_pct"))}
+            tone="warning"
+          />
+        </span>
+      </div>
+
+      <div className="panel-subtitle">Quality</div>
+      <div className="grid grid-4">
+        <span title={help("win_rate_pct")}>
+          <StatCard label="Win rate" value={value("win_rate_pct").toFixed(1) + "%"} />
+        </span>
+        <span title={help("profit_factor")}>
+          <StatCard label="Profit factor" value={optional("profit_factor")} />
+        </span>
+        <span title={help("expectancy")}>
+          <StatCard label="Expectancy / trade" value={formatCurrency(value("expectancy"))} />
+        </span>
+        <span title={help("max_consecutive_losses")}>
+          <StatCard
+            label="Worst losing streak"
+            value={value("max_consecutive_losses")}
+            hint={"Best winning streak " + value("max_consecutive_wins")}
+          />
+        </span>
+        <span title={help("sharpe_ratio")}>
+          <StatCard label="Sharpe" value={optional("sharpe_ratio")} />
+        </span>
+        <span title={help("sortino_ratio")}>
+          <StatCard label="Sortino" value={optional("sortino_ratio")} />
+        </span>
+        <span title={help("calmar_ratio")}>
+          <StatCard label="Calmar" value={optional("calmar_ratio")} />
+        </span>
+        <StatCard
+          label="Average trade"
+          value={(value("average_trade_duration_seconds") / 3600).toFixed(1) + "h"}
+          hint={value("exposure_trades_per_day").toFixed(2) + " trades per day"}
+        />
+      </div>
+
+      <div className="panel-subtitle">What it cost you</div>
+      <div className="grid grid-4">
+        <span title={help("total_fees")}>
+          <StatCard label="Fees" value={formatCurrency(value("total_fees"))} />
+        </span>
+        <span title={help("total_funding")}>
+          <StatCard label="Funding" value={formatCurrency(value("total_funding"))} />
+        </span>
+        <span title={help("total_slippage")}>
+          <StatCard label="Slippage" value={formatCurrency(value("total_slippage"))} />
+        </span>
+        <StatCard
+          label="Average win / loss"
+          value={formatCurrency(value("average_win"))}
+          hint={"Average loss " + formatCurrency(value("average_loss"))}
+        />
+      </div>
+    </>
   );
 }
 
@@ -126,13 +247,15 @@ export function BacktestLabPage() {
   const [form, setForm] = useState<FormState>(INITIAL_FORM);
   const [params, setParams] = useState<Record<string, unknown>>({});
   const [result, setResult] = useState<BacktestDetail | null>(null);
+  const [advanced, setAdvanced] = useState(false);
 
   const strategies = usePolledQuery(["strategies"], strategyService.list, REFRESH_SLOW);
   const settings = useOnceQuery(["settings"], settingsService.get);
   const history = usePolledQuery(["backtests"], () => backtestService.list(20), REFRESH_SLOW);
 
-  const selected = (strategies.data ?? []).find((item) => item.key === form.strategy_key);
-  const symbols = settings.data?.trading.enabled_symbols ?? ["BTC/USDT", "ETH/USDT"];
+  const allStrategies: StrategySummary[] = strategies.data ?? [];
+  const selected = allStrategies.find((item) => item.key === form.strategy_key);
+  const symbols = settings.data?.environment.supported_symbols ?? ["BTC/USDT", "ETH/USDT"];
 
   const run = useApiMutation(
     (payload: BacktestRunPayload) => backtestService.run(payload),
@@ -152,6 +275,14 @@ export function BacktestLabPage() {
 
   function update<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((current) => ({ ...current, [key]: value }));
+  }
+
+  function applyPreset(days: number) {
+    setForm((current) => ({
+      ...current,
+      start: daysAgoIso(days),
+      end: toIsoDate(new Date()),
+    }));
   }
 
   function submit() {
@@ -174,26 +305,34 @@ export function BacktestLabPage() {
     });
   }
 
+  const activePreset = RANGE_PRESETS.find((preset) => daysAgoIso(preset.days) === form.start);
+
   return (
     <>
       <div className="page-header">
         <div>
           <h1>Backtest Lab</h1>
           <p>
-            Bar-by-bar simulation with realistic costs. Decisions are taken on closed candles
-            and filled at the next open, so the results contain no look-ahead bias.
+            Test a strategy on real historical candles. Decisions are taken on closed candles
+            and filled at the next open with fees, funding and slippage, so the result is
+            deliberately pessimistic rather than flattering.
           </p>
         </div>
+        <Toggle
+          checked={advanced}
+          onChange={setAdvanced}
+          label={advanced ? "Advanced settings" : "Simple mode"}
+        />
       </div>
 
       <Banner tone="warning">
         A backtest describes the past. It is not a prediction and it is not a profit
-        guarantee. Optimising parameters until the curve looks good is called overfitting and
-        it is the fastest way to lose real money.
+        guarantee. Tuning parameters until the curve looks good is called overfitting and it
+        is the fastest way to lose real money.
       </Banner>
 
-      <Panel title="Configuration">
-        <div className="grid grid-4">
+      <Panel title="1. What do you want to test?">
+        <div className="grid grid-3">
           <div className="field">
             <label htmlFor="strategy">Strategy</label>
             <select
@@ -204,12 +343,30 @@ export function BacktestLabPage() {
                 setParams({});
               }}
             >
-              {(strategies.data ?? []).map((item) => (
-                <option key={item.key} value={item.key}>
-                  {item.name}
-                </option>
-              ))}
+              {(["safe", "medium", "risky"] as const).map((level) => {
+                const group = allStrategies.filter((item) => item.risk_level === level);
+                if (group.length === 0) {
+                  return null;
+                }
+                return (
+                  <optgroup key={level} label={RISK_LEVEL_LABEL[level] + " risk"}>
+                    {group.map((item) => (
+                      <option key={item.key} value={item.key}>
+                        {item.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                );
+              })}
             </select>
+            {selected && (
+              <small>
+                <Badge tone={riskTone(selected.risk_level)}>
+                  {RISK_LEVEL_LABEL[selected.risk_level]}
+                </Badge>{" "}
+                {RISK_LEVEL_HELP[selected.risk_level]}
+              </small>
+            )}
           </div>
           <div className="field">
             <label htmlFor="symbol">Market</label>
@@ -224,9 +381,10 @@ export function BacktestLabPage() {
                 </option>
               ))}
             </select>
+            <small>Markets come from your Settings page.</small>
           </div>
           <div className="field">
-            <label htmlFor="timeframe">Timeframe</label>
+            <label htmlFor="timeframe">Candle size</label>
             <select
               id="timeframe"
               value={form.timeframe}
@@ -238,17 +396,29 @@ export function BacktestLabPage() {
                 </option>
               ))}
             </select>
+            <small>Smaller candles mean more trades and more cost.</small>
           </div>
-          <div className="field">
-            <label htmlFor="capital">Starting capital</label>
-            <input
-              id="capital"
-              type="number"
-              min={100}
-              value={form.starting_capital}
-              onChange={(event) => update("starting_capital", Number(event.target.value))}
-            />
-          </div>
+        </div>
+
+        {selected && <div className="small muted">{selected.description}</div>}
+      </Panel>
+
+      <Panel title="2. Over which period?">
+        <div className="btn-row">
+          {RANGE_PRESETS.map((preset) => (
+            <button
+              key={preset.label}
+              type="button"
+              className={
+                activePreset?.label === preset.label ? "btn btn-sm btn-primary" : "btn btn-sm"
+              }
+              onClick={() => applyPreset(preset.days)}
+            >
+              {preset.label}
+            </button>
+          ))}
+        </div>
+        <div className="grid grid-3">
           <div className="field">
             <label htmlFor="start">Start date</label>
             <input
@@ -268,85 +438,127 @@ export function BacktestLabPage() {
             />
           </div>
           <div className="field">
-            <label htmlFor="leverage">Leverage</label>
+            <label htmlFor="capital">Starting capital (USDT)</label>
             <input
-              id="leverage"
+              id="capital"
               type="number"
-              min={1}
-              max={20}
-              value={form.leverage}
-              onChange={(event) => update("leverage", Number(event.target.value))}
+              min={100}
+              value={form.starting_capital}
+              onChange={(event) => update("starting_capital", Number(event.target.value))}
             />
-          </div>
-          <div className="field">
-            <label htmlFor="fee">Taker fee %</label>
-            <input
-              id="fee"
-              type="number"
-              step={0.005}
-              value={form.taker_fee_pct}
-              onChange={(event) => update("taker_fee_pct", Number(event.target.value))}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="slippage">Slippage %</label>
-            <input
-              id="slippage"
-              type="number"
-              step={0.005}
-              value={form.slippage_pct}
-              onChange={(event) => update("slippage_pct", Number(event.target.value))}
-            />
-          </div>
-          <div className="field">
-            <label htmlFor="funding">Funding % per 8h</label>
-            <input
-              id="funding"
-              type="number"
-              step={0.001}
-              value={form.funding_rate_pct_per_8h}
-              onChange={(event) => update("funding_rate_pct_per_8h", Number(event.target.value))}
-            />
-          </div>
-          <div className="field">
-            <label>Apply funding</label>
-            <Toggle
-              checked={form.apply_funding}
-              onChange={(value) => update("apply_funding", value)}
-            />
-          </div>
-          <div className="field">
-            <label>Respect daily limits</label>
-            <Toggle
-              checked={form.respect_daily_limits}
-              onChange={(value) => update("respect_daily_limits", value)}
-            />
-          </div>
-          <div className="field">
-            <label>Walk-forward analysis</label>
-            <Toggle
-              checked={form.walk_forward}
-              onChange={(value) => update("walk_forward", value)}
-            />
-            <small>Splits the period into in-sample and out-of-sample windows.</small>
           </div>
         </div>
+        <small className="muted">
+          A longer period gives more trades and a more honest picture. Under about 30 trades
+          the result means nothing.
+        </small>
+      </Panel>
 
-        {selected && (
-          <details>
-            <summary className="small muted" style={{ cursor: "pointer", padding: "6px 0" }}>
-              Strategy parameters (leave untouched to use the saved values)
-            </summary>
-            <div style={{ marginTop: 10 }}>
-              <ParamsForm
-                schema={selected.param_schema}
-                values={{ ...selected.params, ...params }}
-                onChange={(key, value) => setParams((current) => ({ ...current, [key]: value }))}
+      {advanced && (
+        <Panel
+          title="3. Costs, leverage and validation"
+          subtitle="The defaults already match realistic Binance futures conditions."
+        >
+          <div className="grid grid-4">
+            <div className="field">
+              <label htmlFor="leverage">Leverage</label>
+              <input
+                id="leverage"
+                type="number"
+                min={1}
+                max={20}
+                value={form.leverage}
+                onChange={(event) => update("leverage", Number(event.target.value))}
               />
             </div>
-          </details>
-        )}
+            <div className="field">
+              <label htmlFor="fee">Taker fee %</label>
+              <input
+                id="fee"
+                type="number"
+                step={0.005}
+                value={form.taker_fee_pct}
+                onChange={(event) => update("taker_fee_pct", Number(event.target.value))}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="slippage">Slippage %</label>
+              <input
+                id="slippage"
+                type="number"
+                step={0.005}
+                value={form.slippage_pct}
+                onChange={(event) => update("slippage_pct", Number(event.target.value))}
+              />
+            </div>
+            <div className="field">
+              <label htmlFor="funding">Funding % per 8h</label>
+              <input
+                id="funding"
+                type="number"
+                step={0.001}
+                value={form.funding_rate_pct_per_8h}
+                onChange={(event) => update("funding_rate_pct_per_8h", Number(event.target.value))}
+              />
+            </div>
+            <div className="field">
+              <label>Apply funding</label>
+              <Toggle
+                checked={form.apply_funding}
+                onChange={(value) => update("apply_funding", value)}
+              />
+            </div>
+            <div className="field">
+              <label>Respect daily limits</label>
+              <Toggle
+                checked={form.respect_daily_limits}
+                onChange={(value) => update("respect_daily_limits", value)}
+              />
+              <small>Applies the same daily loss and profit guards as live trading.</small>
+            </div>
+            <div className="field">
+              <label>Walk-forward analysis</label>
+              <Toggle
+                checked={form.walk_forward}
+                onChange={(value) => update("walk_forward", value)}
+              />
+              <small>Splits the period into in-sample and out-of-sample windows.</small>
+            </div>
+            <div className="field">
+              <label htmlFor="folds">Walk-forward folds</label>
+              <input
+                id="folds"
+                type="number"
+                min={2}
+                max={12}
+                disabled={!form.walk_forward}
+                value={form.walk_forward_folds}
+                onChange={(event) => update("walk_forward_folds", Number(event.target.value))}
+              />
+            </div>
+          </div>
 
+          {selected && (
+            <details>
+              <summary className="small muted" style={{ cursor: "pointer", padding: "6px 0" }}>
+                Strategy parameters (leave untouched to use the saved values)
+              </summary>
+              <div style={{ marginTop: 10 }}>
+                <ParamsForm
+                  schema={selected.param_schema}
+                  values={{ ...selected.params, ...params }}
+                  onChange={(key, value) => setParams((current) => ({ ...current, [key]: value }))}
+                />
+                <small className="muted">
+                  Changing these only affects this test run, not the live strategy settings.
+                </small>
+              </div>
+            </details>
+          )}
+        </Panel>
+      )}
+
+      <Panel title={advanced ? "4. Run it" : "3. Run it"}>
         <div className="btn-row">
           <button
             type="button"
@@ -362,7 +574,8 @@ export function BacktestLabPage() {
         </div>
         {run.isPending && (
           <div className="small muted">
-            Downloading candles and simulating. The first run for a period can take a while.
+            Downloading candles and simulating candle by candle. The first run for a new
+            period has to fetch the data, so it can take a minute.
           </div>
         )}
         {run.error && <ErrorState error={run.error} />}
@@ -370,6 +583,8 @@ export function BacktestLabPage() {
 
       {result && (
         <>
+          <Verdict result={result} />
+
           <Panel
             title="Result"
             subtitle={
@@ -387,7 +602,7 @@ export function BacktestLabPage() {
           </Panel>
 
           <div className="grid grid-2">
-            <Panel title="Equity curve">
+            <Panel title="Equity curve" subtitle="How the account would have developed">
               <LineAreaChart
                 data={result.equity_curve.map((point) => ({
                   time: point.timestamp_ms,
@@ -396,7 +611,7 @@ export function BacktestLabPage() {
                 height={280}
               />
             </Panel>
-            <Panel title="Drawdown">
+            <Panel title="Drawdown" subtitle="How far below the peak the account was">
               <LineAreaChart
                 data={result.drawdown_curve.map((point) => ({
                   time: point.time,
@@ -479,7 +694,7 @@ export function BacktestLabPage() {
       )}
 
       {result && result.trades.length > 0 && (
-        <Panel title={"Trades (" + result.trades.length + ")"}>
+        <Panel title={"Every trade (" + result.trades.length + ")"}>
           <div className="table-wrap" style={{ maxHeight: 420, overflowY: "auto" }}>
             <table>
               <thead>
@@ -491,12 +706,12 @@ export function BacktestLabPage() {
                   <th className="numeric">Exit</th>
                   <th className="numeric">Net</th>
                   <th className="numeric">Return</th>
-                  <th>Exit reason</th>
+                  <th>Why it closed</th>
                 </tr>
               </thead>
               <tbody>
                 {result.trades.map((trade) => (
-                  <tr key={trade.uid}>
+                  <tr key={trade.uid} title={trade.entry_reason}>
                     <td>{formatDateTime(trade.opened_at)}</td>
                     <td>{formatDateTime(trade.closed_at)}</td>
                     <td>
@@ -510,7 +725,7 @@ export function BacktestLabPage() {
                     <td className={"numeric " + pnlClass(trade.return_pct)}>
                       {formatPercent(trade.return_pct)}
                     </td>
-                    <td className="small">{trade.exit_reason}</td>
+                    <td className="small">{titleCase(trade.exit_reason)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -519,7 +734,7 @@ export function BacktestLabPage() {
         </Panel>
       )}
 
-      <Panel title="Previous runs">
+      <Panel title="Previous runs" subtitle="Click Open to load a result again">
         {history.isLoading ? (
           <Loading />
         ) : (

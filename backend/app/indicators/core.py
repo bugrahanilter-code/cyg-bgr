@@ -224,3 +224,160 @@ def safe_float(value: object, default: float | None = None) -> float | None:
     if np.isnan(number) or np.isinf(number):
         return default
     return number
+
+
+def macd(close: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9) -> pd.DataFrame:
+    """Moving average convergence divergence."""
+    macd_line = ema(close, fast) - ema(close, slow)
+    signal_line = macd_line.ewm(span=signal, adjust=False, min_periods=signal).mean()
+    return pd.DataFrame(
+        {
+            "macd": macd_line,
+            "macd_signal": signal_line,
+            "macd_hist": macd_line - signal_line,
+        }
+    )
+
+
+def keltner_channels(
+    high: pd.Series,
+    low: pd.Series,
+    close: pd.Series,
+    ema_period: int = 20,
+    atr_period: int = 10,
+    multiplier: float = 2.0,
+) -> pd.DataFrame:
+    """Keltner channels: an EMA surrounded by an ATR band."""
+    middle = ema(close, ema_period)
+    band = atr(high, low, close, atr_period) * multiplier
+    return pd.DataFrame(
+        {
+            "keltner_middle": middle,
+            "keltner_upper": middle + band,
+            "keltner_lower": middle - band,
+        }
+    )
+
+
+def supertrend(
+    high: pd.Series,
+    low: pd.Series,
+    close: pd.Series,
+    period: int = 10,
+    multiplier: float = 3.0,
+) -> pd.DataFrame:
+    """SuperTrend: an ATR trailing stop that flips with the trend.
+
+    The band is stateful (each bar depends on the previous one), so this is a
+    loop rather than a vectorised expression. It only ever reads bars up to the
+    current one, so it stays causal.
+    """
+    atr_values = atr(high, low, close, period)
+    median_price = (high + low) / 2.0
+    upper_basic = median_price + multiplier * atr_values
+    lower_basic = median_price - multiplier * atr_values
+
+    length = len(close)
+    line = np.full(length, np.nan)
+    direction = np.full(length, np.nan)
+    upper = np.full(length, np.nan)
+    lower = np.full(length, np.nan)
+
+    closes = close.to_numpy(dtype="float64")
+    upper_values = upper_basic.to_numpy(dtype="float64")
+    lower_values = lower_basic.to_numpy(dtype="float64")
+
+    started = False
+    for index in range(length):
+        if np.isnan(upper_values[index]) or np.isnan(lower_values[index]):
+            continue
+        if not started:
+            upper[index] = upper_values[index]
+            lower[index] = lower_values[index]
+            direction[index] = 1.0
+            line[index] = lower[index]
+            started = True
+            continue
+
+        previous = index - 1
+        previous_upper = upper[previous] if not np.isnan(upper[previous]) else upper_values[index]
+        previous_lower = lower[previous] if not np.isnan(lower[previous]) else lower_values[index]
+
+        upper[index] = (
+            min(upper_values[index], previous_upper)
+            if closes[previous] <= previous_upper
+            else upper_values[index]
+        )
+        lower[index] = (
+            max(lower_values[index], previous_lower)
+            if closes[previous] >= previous_lower
+            else lower_values[index]
+        )
+
+        if closes[index] > upper[index]:
+            direction[index] = 1.0
+        elif closes[index] < lower[index]:
+            direction[index] = -1.0
+        else:
+            direction[index] = direction[previous]
+
+        line[index] = lower[index] if direction[index] > 0 else upper[index]
+
+    return pd.DataFrame(
+        {
+            "supertrend": pd.Series(line, index=close.index),
+            "supertrend_direction": pd.Series(direction, index=close.index),
+        }
+    )
+
+
+def ichimoku(
+    high: pd.Series,
+    low: pd.Series,
+    close: pd.Series,
+    tenkan_period: int = 9,
+    kijun_period: int = 26,
+    senkou_b_period: int = 52,
+) -> pd.DataFrame:
+    """Ichimoku Kinko Hyo.
+
+    The two cloud lines are shifted FORWARD by kijun_period, which is what the
+    original system does: the cloud visible at bar t was computed from data at
+    bar t - kijun_period. Shifting forward therefore never leaks future data.
+    """
+    tenkan = (highest(high, tenkan_period) + lowest(low, tenkan_period)) / 2.0
+    kijun = (highest(high, kijun_period) + lowest(low, kijun_period)) / 2.0
+    senkou_a = ((tenkan + kijun) / 2.0).shift(kijun_period)
+    senkou_b = ((highest(high, senkou_b_period) + lowest(low, senkou_b_period)) / 2.0).shift(
+        kijun_period
+    )
+    return pd.DataFrame(
+        {
+            "tenkan": tenkan,
+            "kijun": kijun,
+            "senkou_a": senkou_a,
+            "senkou_b": senkou_b,
+            "cloud_top": pd.concat([senkou_a, senkou_b], axis=1).max(axis=1),
+            "cloud_bottom": pd.concat([senkou_a, senkou_b], axis=1).min(axis=1),
+        }
+    )
+
+
+def stochastic(
+    high: pd.Series,
+    low: pd.Series,
+    close: pd.Series,
+    k_period: int = 14,
+    d_period: int = 3,
+) -> pd.DataFrame:
+    """Stochastic oscillator (%K and %D)."""
+    highest_high = highest(high, k_period)
+    lowest_low = lowest(low, k_period)
+    span = (highest_high - lowest_low).replace(0.0, np.nan)
+    percent_k = 100.0 * (close - lowest_low) / span
+    return pd.DataFrame(
+        {
+            "stoch_k": percent_k,
+            "stoch_d": percent_k.rolling(window=d_period, min_periods=d_period).mean(),
+        }
+    )

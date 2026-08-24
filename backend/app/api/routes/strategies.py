@@ -58,6 +58,7 @@ def list_strategies(db: DbSession, context: Context) -> list[StrategyOut]:
                 key=key,
                 name=meta["name"],
                 family=meta["family"],
+                risk_level=meta["risk_level"],
                 description=meta["description"],
                 enabled=trading_config.is_strategy_enabled(key),
                 params=_current_params(db, key),

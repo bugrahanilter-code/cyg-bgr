@@ -26,6 +26,17 @@ class TradingMode(StrEnum):
     LIVE = "live"
 
 
+class RiskLevel(StrEnum):
+    """How aggressive a strategy is, shown to the user before enabling it."""
+
+    SAFE = "safe"
+    MEDIUM = "medium"
+    RISKY = "risky"
+
+
+RISK_LEVEL_ORDER: dict[str, int] = {"safe": 0, "medium": 1, "risky": 2}
+
+
 class MarketType(StrEnum):
     SPOT = "spot"
     FUTURES = "futures"

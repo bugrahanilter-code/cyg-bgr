@@ -17,7 +17,7 @@ from typing import Any
 import pandas as pd
 from pydantic import BaseModel, Field
 
-from app.core.constants import SignalType
+from app.core.constants import RiskLevel, SignalType
 from app.indicators import adx, atr, bollinger_bands, rolling_vwap, rsi, safe_float, zscore
 from app.regime.engine import RegimeResult
 from app.signals.models import StrategySignal
@@ -72,6 +72,7 @@ class MeanReversionStrategy(BaseStrategy):
     key = "mean_reversion"
     name = "Statistical Mean Reversion"
     family = "mean_reversion"
+    risk_level = RiskLevel.RISKY
     description = (
         "Fades extreme deviations from a rolling mean while a regime filter "
         "keeps it out of trending markets. Vulnerable to sustained trends and "

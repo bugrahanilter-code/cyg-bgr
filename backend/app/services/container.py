@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.core.config import get_settings
 from app.core.constants import ConnectionStatus, HealthStatus, MarketType, TradingMode
 from app.core.logging import get_logger
+from app.core.time_utils import utcnow
 from app.database.session import SessionLocal
 from app.exchange.base import AccountBalance, ExchangeGateway, ExchangePosition
 from app.exchange.binance import BinanceGateway
@@ -267,7 +268,6 @@ class AppContext:
             row.price_precision = filters.price_precision
             row.quantity_precision = filters.quantity_precision
             row.max_leverage = filters.max_leverage
-            from app.core.time_utils import utcnow
 
             row.filters_synced_at = utcnow()
             self.filters[symbol.upper()] = filters
@@ -276,6 +276,70 @@ class AppContext:
         if self.engine is not None:
             self.engine.filters = self.filters
         return {"updated": updated}
+
+    async def discover_top_symbols(self, limit: int = 10) -> list[dict[str, Any]]:
+        """List the highest volume crypto markets on the exchange."""
+        if self.data_gateway is None:
+            return []
+        return await self.data_gateway.fetch_top_symbols_by_volume(
+            limit=limit, quote=self.settings.quote_currency
+        )
+
+    async def sync_top_symbols(self, db: Session, limit: int = 10) -> dict[str, Any]:
+        """Add the highest volume crypto markets to the symbols table.
+
+        The markets become *available*; they are not switched on for trading.
+        Enabling a market is a deliberate decision the user makes in Settings,
+        because every extra market multiplies the number of strategy
+        evaluations and the number of positions that can be opened.
+        """
+        discovered = await self.discover_top_symbols(limit)
+        added: list[str] = []
+        updated: list[str] = []
+
+        for entry in discovered:
+            symbol = entry["symbol"]
+            row = db.query(Symbol).filter(Symbol.symbol == symbol).one_or_none()
+            try:
+                filters = await self.data_gateway.fetch_symbol_filters(symbol)  # type: ignore[union-attr]
+            except Exception as exc:
+                logger.warning(
+                    "Could not read filters for a discovered market",
+                    extra={"symbol": symbol, "error": str(exc)},
+                )
+                filters = default_filters_for(symbol)
+
+            if row is None:
+                row = Symbol(
+                    symbol=symbol,
+                    base_asset=entry["base_asset"],
+                    quote_asset=entry["quote_asset"],
+                    market_type=self.settings.binance_market_type.value,
+                    enabled=False,
+                )
+                db.add(row)
+                added.append(symbol)
+            else:
+                updated.append(symbol)
+
+            row.tick_size = filters.tick_size
+            row.step_size = filters.step_size
+            row.min_quantity = filters.min_quantity
+            row.min_notional = filters.min_notional
+            row.price_precision = filters.price_precision
+            row.quantity_precision = filters.quantity_precision
+            row.max_leverage = filters.max_leverage
+            row.filters_synced_at = utcnow()
+            self.filters[symbol] = filters
+
+        db.commit()
+        if self.engine is not None:
+            self.engine.filters = self.filters
+        logger.info(
+            "Top volume markets synchronised",
+            extra={"added": len(added), "updated": len(updated)},
+        )
+        return {"discovered": discovered, "added": added, "updated": updated}
 
     async def test_exchange_connection(self, db: Session) -> dict[str, Any]:
         """Verify credentials, report permissions and warn about withdrawals."""

@@ -5,9 +5,11 @@ from __future__ import annotations
 from typing import Any
 
 from fastapi import APIRouter
+from sqlalchemy import select
 
 from app.api.deps import Context, DbSession
 from app.core.config import get_settings
+from app.models.market import Symbol
 from app.schemas.common import MessageResponse
 from app.schemas.requests import TradingConfigRequest
 from app.services import credentials_service, event_service, settings_service
@@ -24,7 +26,11 @@ def read_settings(db: DbSession) -> dict[str, Any]:
         "app_env": settings.app_env,
         "live_trading_enabled_in_env": settings.live_trading_enabled,
         "default_timeframe": settings.default_timeframe,
-        "supported_symbols": settings.enabled_symbol_list,
+        "supported_symbols": [
+            row.symbol
+            for row in db.execute(select(Symbol).order_by(Symbol.symbol.asc())).scalars().all()
+        ]
+        or settings.available_symbol_list,
         "paper_starting_balance": settings.paper_starting_balance,
     }
     return payload

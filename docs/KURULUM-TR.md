@@ -260,7 +260,64 @@ sunar:
 | Backtest "Not enough candles" diyor | Daha uzun tarih aralığı veya daha küçük zaman dilimi seçin |
 | Anahtar çözülemiyor hatası | `SECRET_KEY` değişmiş; anahtarları yeniden girin |
 
-## 13. Unutmayın
+## 13. Stratejiler ve coinler
+
+### 13 strateji, 3 risk seviyesi
+
+Panelde her stratejinin yanında risk rozeti görürsünüz:
+
+| Seviye | Kaç tane | Ne demek |
+| --- | --- | --- |
+| **SAFE** | 4 | Az işlem, geniş stop, trendle birlikte, varsayılan olarak sadece alış |
+| **MEDIUM** | 5 | Standart sistematik yaklaşımlar, trend ve güç filtreli |
+| **RISKY** | 4 | Trende karşı, çok sık işlem veya yön belirsizken giriş |
+
+**Güvenli (SAFE):** Golden Cross, Dual Momentum, VWAP Pullback, Keltner Trend
+**Orta (MEDIUM):** Trend Following, Donchian Breakout, MACD, Ichimoku, SuperTrend
+**Riskli (RISKY):** Mean Reversion, RSI Divergence, Volatility Breakout, Squeeze Momentum
+
+"Güvenli" kelimesi **stratejinin yapısını** anlatır, sonucunu değil. Geniş stop
+demek küçük zarar demek değildir; **daha seyrek** zarar demektir. Hepsinde para
+kaybedebilirsiniz.
+
+Her stratejinin nasıl çalıştığı, hangi varsayımlara dayandığı ve **hangi
+durumlarda para kaybettiği** `docs/strategies/` klasöründe yazılıdır.
+
+### En yüksek hacimli 10 coin
+
+İlk açılışta şu 10 coin veritabanına eklenir:
+
+```
+BTC  ETH  SOL  XRP  BNB  DOGE  ZEC  HYPE  TRUMP  ENA
+```
+
+Ama **sadece BTC ve ETH işleme açıktır.** Bir coini eklemek onu "kullanılabilir"
+yapar; işleme açmak Settings sayfasında ayrı bir onay kutusudur. Sebebi basit:
+açık her market motorun işini ve aynı anda açılabilecek pozisyon sayısını
+artırır.
+
+Listeyi güncellemek için: **Settings → "Add the 10 highest-volume coins"**.
+Binance'ten canlı hacim sıralamasını okur.
+
+**Önemli:** Binance'in vadeli borsasında hacim listesinin tepesinde
+tokenize hisse senetleri ve emtialar var (SanDisk, altın, SpaceX, Micron gibi).
+Bunlar kripto değil, borsa saatlerine göre çalışır ve hafta sonu boşluk verir —
+stratejileri yanıltır. Bu yüzden **otomatik olarak eleniyorlar.** Ayrıca her
+coin bir kez listelenir; BTC/USDT ve BTC/USDC birlikte açılıp aynı varlığa
+farkında olmadan iki kat maruz kalmanız engellenir.
+
+### Botu başlatma ve durdurma
+
+Üst barda, kırmızı EMERGENCY STOP düğmesinin hemen solunda:
+
+* **START BOT** — motor durmuşken görünür, çalıştırır
+* **STOP BOT** — motor çalışırken görünür, durdurur (açık pozisyonlara dokunmaz)
+
+Motor durduğunda yeni sinyal üretilmez ve yeni işlem açılmaz. Açık
+pozisyonlarınızın stop ve hedefleri borsada duruyorsa orada kalmaya devam eder;
+paper modda ise pozisyon yönetimi de durur.
+
+## 14. Unutmayın
 
 * Hiçbir strateji kâr garantisi vermez.
 * Backtest sonuçları geleceğin garantisi değildir.

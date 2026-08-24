@@ -8,11 +8,22 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.core.constants import RISK_LEVEL_ORDER
 from app.core.exceptions import NotFoundError
 from app.strategies.base import BaseStrategy
 from app.strategies.breakout_donchian import DonchianBreakoutStrategy
+from app.strategies.dual_momentum import DualMomentumStrategy
+from app.strategies.golden_cross import GoldenCrossStrategy
+from app.strategies.ichimoku_trend import IchimokuStrategy
+from app.strategies.keltner_trend import KeltnerTrendStrategy
+from app.strategies.macd_momentum import MacdMomentumStrategy
 from app.strategies.mean_reversion import MeanReversionStrategy
+from app.strategies.rsi_divergence import RsiDivergenceStrategy
+from app.strategies.squeeze_momentum import SqueezeMomentumStrategy
+from app.strategies.supertrend_follow import SupertrendStrategy
 from app.strategies.trend_following import TrendFollowingStrategy
+from app.strategies.volatility_breakout import VolatilityBreakoutStrategy
+from app.strategies.vwap_pullback import VwapPullbackStrategy
 
 _REGISTRY: dict[str, type[BaseStrategy]] = {}
 
@@ -23,7 +34,27 @@ def register_strategy(strategy_class: type[BaseStrategy]) -> type[BaseStrategy]:
     return strategy_class
 
 
-for _strategy in (TrendFollowingStrategy, DonchianBreakoutStrategy, MeanReversionStrategy):
+#: Every strategy that ships with the platform, grouped by risk level.
+BUILTIN_STRATEGIES: tuple[type[BaseStrategy], ...] = (
+    # Safe: few trades, wide stops, trend aligned, long-only by default
+    GoldenCrossStrategy,
+    DualMomentumStrategy,
+    VwapPullbackStrategy,
+    KeltnerTrendStrategy,
+    # Medium: standard systematic families with filters
+    TrendFollowingStrategy,
+    DonchianBreakoutStrategy,
+    MacdMomentumStrategy,
+    IchimokuStrategy,
+    SupertrendStrategy,
+    # Risky: counter-trend, high frequency or direction-agnostic entries
+    MeanReversionStrategy,
+    RsiDivergenceStrategy,
+    VolatilityBreakoutStrategy,
+    SqueezeMomentumStrategy,
+)
+
+for _strategy in BUILTIN_STRATEGIES:
     register_strategy(_strategy)
 
 
@@ -52,9 +83,13 @@ def strategy_metadata() -> list[dict[str, Any]]:
             "key": cls.key,
             "name": cls.name,
             "family": cls.family,
+            "risk_level": cls.risk_level.value,
             "description": cls.description,
             "default_params": cls.default_params(),
             "param_schema": cls.param_schema(),
         }
-        for cls in _REGISTRY.values()
+        for cls in sorted(
+            _REGISTRY.values(),
+            key=lambda item: (RISK_LEVEL_ORDER.get(item.risk_level.value, 9), item.name),
+        )
     ]

@@ -1,8 +1,8 @@
 # Crypto Algorithmic Trading Platform
 
-A modular, local-first cryptocurrency algorithmic trading platform for
-**BTC/USDT** and **ETH/USDT**, with backtesting, paper trading and (optional,
-off by default) live trading on Binance.
+A modular, local-first cryptocurrency algorithmic trading platform for the ten
+highest-volume Binance coins, with thirteen strategies, backtesting, paper
+trading and (optional, off by default) live trading.
 
 > ## THIS SYSTEM DOES NOT GUARANTEE ANY PROFIT
 >
@@ -50,13 +50,34 @@ A trading platform that runs entirely on your own computer. It has three modes:
 | **Paper** (default) | Real, live Binance data | Simulated with fees and slippage | None |
 | **Live** | Real, live Binance data | **Real orders on Binance** | **Real money** |
 
-It ships with three independent, publicly documented strategies, a strict Risk
+It ships with thirteen independent, publicly documented strategies (4 safe,
+5 medium risk, 4 risky - the level is shown in the dashboard), a strict Risk
 Engine that can veto any of them, a reconciliation engine that compares local
 state with the exchange, and a three-level emergency stop.
 
 **Live trading is disabled by default and cannot start on its own.** Even with
 API keys present the platform stays in paper mode until you explicitly enable
 live trading in two separate places.
+
+### Markets
+
+The ten highest-volume Binance coins are created for you on first start:
+
+```
+BTC  ETH  SOL  XRP  BNB  DOGE  ZEC  HYPE  TRUMP  ENA   (all quoted in USDT)
+```
+
+Only **BTC/USDT and ETH/USDT are enabled for trading** by default. Adding a
+market makes it available; switching it on is a separate tick in Settings,
+because every enabled market multiplies the work the engine does and the number
+of positions that can be opened.
+
+The ranking is live: **Settings -> Add the 10 highest-volume coins** re-reads it
+from Binance. Tokenised stocks and commodities (Binance lists SanDisk, gold,
+SpaceX and others on the same venue) are filtered out on purpose — they follow
+stock-market hours and gap over weekends, which every strategy here would
+misread. Each coin appears once, so BTC/USDT and BTC/USDC never both get
+enabled and quietly double your exposure to one asset.
 
 ## 2. How it works
 
@@ -304,7 +325,7 @@ managing the open ones. It never increases risk to reach a target.
 | **Positions** | Size, entry, price, stop, target, leverage, margin, liquidation price, unrealised PnL, close buttons |
 | **Trades** | Full journal with filters (date, market, strategy, direction, win/loss, paper/live/backtest) |
 | **Strategies** | Enable/disable, current signal, confidence, regime, parameters, performance per strategy |
-| **Comparison** | All three strategies side by side, overall and per market |
+| **Comparison** | Every strategy side by side, overall and per market |
 | **Backtest Lab** | Run backtests and walk-forward analysis, view charts and metrics |
 | **Risk Settings** | Every risk limit |
 | **System** | Health of each component, heartbeat, engine control, event log |

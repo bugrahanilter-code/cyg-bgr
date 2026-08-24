@@ -89,3 +89,42 @@ async def refresh_filters(db: DbSession, context: Context) -> dict[str, Any]:
 def symbols(db: DbSession) -> list[SymbolOut]:
     rows = db.execute(select(Symbol).order_by(Symbol.symbol.asc())).scalars().all()
     return [SymbolOut.model_validate(row) for row in rows]
+
+
+@router.get("/top-symbols", summary="Highest volume crypto markets on Binance")
+async def top_symbols(context: Context, limit: int = 10) -> dict[str, Any]:
+    """Live ranking by 24 hour quote volume.
+
+    Tokenised stocks and commodities are excluded and each coin appears once.
+    """
+    try:
+        rows = await context.discover_top_symbols(min(max(limit, 1), 50))
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Could not reach Binance: {exc}") from exc
+    return {
+        "symbols": rows,
+        "note": (
+            "Tokenised stocks and commodities are filtered out because they do not "
+            "trade around the clock. Each coin is listed once."
+        ),
+    }
+
+
+@router.post("/symbols/sync-top", summary="Add the highest volume markets")
+async def sync_top_symbols(db: DbSession, context: Context, limit: int = 10) -> dict[str, Any]:
+    """Add the top markets to the symbol list without enabling them for trading."""
+    try:
+        result = await context.sync_top_symbols(db, min(max(limit, 1), 50))
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail=f"Could not reach Binance: {exc}") from exc
+    event_service.audit(
+        db,
+        action="sync_top_symbols",
+        entity="symbol",
+        after={"added": result["added"], "updated": result["updated"]},
+    )
+    result["message"] = (
+        f"{len(result['added'])} market(s) added, {len(result['updated'])} updated. "
+        "Enable the ones you want to trade in Settings."
+    )
+    return result

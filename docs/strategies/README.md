@@ -1,32 +1,72 @@
 # Strategies
 
-Three independent, publicly documented systematic families ship with the
-platform:
+Thirteen independent, publicly documented systematic families ship with the
+platform, grouped by how aggressive they are. The dashboard shows the risk
+level next to every strategy.
 
-| Key | Family | Trades best in | Main weakness |
-| --- | --- | --- | --- |
-| [`trend_following`](01-trend-following.md) | Time series momentum | Persistent trends | Choppy ranges |
-| [`breakout_donchian`](02-breakout-donchian.md) | Channel breakout | Volatility expansion | False breakouts |
-| [`mean_reversion`](03-mean-reversion.md) | Statistical reversion | Quiet ranges | Strong trends |
+## Safe (4)
 
-They were chosen because they are **complementary** (what hurts one tends to
-help another), **publicly documented** (no secret sauce, no claim of insider
-methods) and **simple enough to test honestly**.
+Few trades, wide stops, trend aligned, long-only by default.
+Details: [06-safe-strategies.md](06-safe-strategies.md)
+
+| Key | Idea | Main weakness |
+| --- | --- | --- |
+| `golden_cross` | 50/200 moving average cross | Gives back a lot at the exit |
+| `dual_momentum` | Absolute momentum + trend alignment | Whipsawed by V-shaped reversals |
+| `vwap_pullback` | Buy dips to VWAP inside a trend | Pullback becomes a reversal |
+| `keltner_trend` | Channel break with four confirmations | Trades very rarely |
+
+## Medium (5)
+
+Standard systematic families with trend and strength filters.
+Details: [05-medium-risk-strategies.md](05-medium-risk-strategies.md) and
+[01-trend-following.md](01-trend-following.md),
+[02-breakout-donchian.md](02-breakout-donchian.md)
+
+| Key | Idea | Main weakness |
+| --- | --- | --- |
+| `trend_following` | Time series momentum, higher timeframe confirmed | Choppy ranges |
+| `breakout_donchian` | N-bar channel breakout | False breakouts |
+| `macd_momentum` | MACD crossover with trend filter | Sideways whipsaws |
+| `ichimoku_trend` | Cloud + conversion/base cross | Slow to react |
+| `supertrend_follow` | ATR trailing-stop state flips | Flip-flops in chop |
+
+## Risky (4)
+
+Counter-trend, high frequency or direction-agnostic entries.
+Details: [04-risky-strategies.md](04-risky-strategies.md) and
+[03-mean-reversion.md](03-mean-reversion.md)
+
+| Key | Idea | Main weakness |
+| --- | --- | --- |
+| `mean_reversion` | Bollinger/z-score reversion | Strong trends |
+| `rsi_divergence` | Price/RSI disagreement reversal | Divergences persist in trends |
+| `volatility_breakout` | Range projection from the open | Cost drag, false breaks |
+| `squeeze_momentum` | Volatility compression release | A squeeze predicts movement, not direction |
+
+## Why these families
+
+They are **complementary** (what hurts one tends to help another),
+**publicly documented** (no secret methods, no claim of privileged access) and
+**simple enough to test honestly**.
 
 ## Shared warning
 
 None of these strategies is guaranteed to be profitable. Every one of them has
-documented market conditions in which it loses money, listed in its own page.
-Backtest results describe the past only.
+documented market conditions in which it loses money, listed on its own page.
+Backtest results describe the past only. "Safe" describes the structure of the
+strategy, not the outcome.
 
-## Adding a fourth strategy
+## Adding a fourteenth strategy
 
 1. Create `backend/app/strategies/my_strategy.py`
-2. Subclass `BaseStrategy`, define a Pydantic `params_model`, implement
-   `warmup_bars`, `prepare()` and `evaluate()`
-3. Register it in `backend/app/strategies/registry.py`
-4. Add unit tests in `backend/tests/test_strategies.py`
-5. Write a documentation page like the three above, including the failure modes
+2. Subclass `BaseStrategy`, set `key`, `name`, `family`, `risk_level` and a
+   Pydantic `params_model`, then implement `warmup_bars`, `prepare()` and
+   `evaluate()`
+3. Add it to `BUILTIN_STRATEGIES` in `backend/app/strategies/registry.py`
+4. Add tests. The suite automatically checks every registered strategy for
+   stop/target consistency and that it can actually produce an entry.
+5. Write a documentation page including the conditions in which it loses money.
 
 The dashboard picks the new strategy up automatically, including a settings
 form generated from the parameter schema.

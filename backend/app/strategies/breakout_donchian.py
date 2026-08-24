@@ -16,7 +16,7 @@ from typing import Any
 import pandas as pd
 from pydantic import BaseModel, Field
 
-from app.core.constants import SignalType
+from app.core.constants import RiskLevel, SignalType
 from app.indicators import atr, donchian_channel, ema, safe_float, volume_ratio
 from app.regime.engine import RegimeResult
 from app.signals.models import StrategySignal
@@ -67,6 +67,7 @@ class DonchianBreakoutStrategy(BaseStrategy):
     key = "breakout_donchian"
     name = "Donchian Channel Breakout"
     family = "breakout"
+    risk_level = RiskLevel.MEDIUM
     description = (
         "Buys new N-bar highs and sells new N-bar lows, filtered by volume, "
         "trend and volatility. Suffers from false breakouts in ranging markets."

@@ -378,6 +378,61 @@ class BinanceGateway(ExchangeGateway):
             # Binance rejects the call when the leverage is already correct.
             logger.info("set_leverage skipped", extra={"detail": str(exc)})
 
+    # -- discovery ----------------------------------------------------------
+    async def fetch_top_symbols_by_volume(
+        self, limit: int = 10, quote: str = "USDT"
+    ) -> list[dict[str, Any]]:
+        """Return the highest 24h volume CRYPTO markets, one row per coin.
+
+        Tokenised stocks and commodities (Binance lists them as EQUITY and
+        COMMODITY) are filtered out: they follow stock-market hours and gap over
+        weekends, which every strategy here would misread. Markets are also
+        de-duplicated per base asset so BTC/USDT and BTC/USDC do not both appear
+        and quietly double the exposure to one coin.
+        """
+        markets = await self._ensure_markets()
+        tickers = await self._call("fetch_tickers")
+
+        rows: list[dict[str, Any]] = []
+        for market_symbol, ticker in (tickers or {}).items():
+            market = markets.get(market_symbol) or {}
+            info = market.get("info") or {}
+            if self.market_type == MarketType.FUTURES:
+                if info.get("underlyingType") != CRYPTO_UNDERLYING_TYPE:
+                    continue
+                if info.get("contractType") != PERPETUAL_CONTRACT_TYPE:
+                    continue
+                if info.get("status") not in (None, "TRADING"):
+                    continue
+            canonical = self.to_canonical(market_symbol)
+            if not canonical.endswith(f"/{quote}"):
+                continue
+            volume = _as_float(ticker.get("quoteVolume"), 0.0) or 0.0
+            if volume <= 0:
+                continue
+            rows.append(
+                {
+                    "symbol": canonical,
+                    "base_asset": canonical.split("/")[0],
+                    "quote_asset": quote,
+                    "quote_volume_24h": volume,
+                    "last_price": _as_float(ticker.get("last"), 0.0) or 0.0,
+                    "change_24h_pct": _as_float(ticker.get("percentage"), 0.0) or 0.0,
+                }
+            )
+
+        rows.sort(key=lambda row: row["quote_volume_24h"], reverse=True)
+        unique: list[dict[str, Any]] = []
+        seen: set[str] = set()
+        for row in rows:
+            if row["base_asset"] in seen:
+                continue
+            seen.add(row["base_asset"])
+            unique.append(row)
+            if len(unique) >= limit:
+                break
+        return unique
+
     # -- diagnostics --------------------------------------------------------
     async def check_permissions(self) -> dict[str, Any]:
         """Best-effort inspection of the API key permissions.
@@ -474,3 +529,10 @@ def _step_to_decimals(step: float) -> int:
     if "." not in text:
         return 0
     return len(text.split(".")[1])
+
+
+#: Binance lists tokenised equities and commodities alongside crypto on its
+#: futures venue. They trade on stock-market hours and gap over weekends, which
+#: breaks every assumption a 24/7 crypto strategy makes, so they are excluded.
+CRYPTO_UNDERLYING_TYPE = "COIN"
+PERPETUAL_CONTRACT_TYPE = "PERPETUAL"

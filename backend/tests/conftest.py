@@ -46,11 +46,20 @@ def db():
 
 
 def _frame_from_prices(prices: np.ndarray, start_ms: int, step_ms: int) -> pd.DataFrame:
-    """Build a canonical OHLCV frame from a close price series."""
-    highs = prices * (1.0 + np.abs(np.random.default_rng(7).normal(0, 0.001, len(prices))))
-    lows = prices * (1.0 - np.abs(np.random.default_rng(11).normal(0, 0.001, len(prices))))
+    """Build a canonical OHLCV frame from a close price series.
+
+    Volume varies with the size of each candle, the way it does in a real
+    market. A constant volume would silently disable every volume filter and
+    make the tests pass for the wrong reason.
+    """
+    rng = np.random.default_rng(7)
+    highs = prices * (1.0 + np.abs(rng.normal(0, 0.001, len(prices))))
+    lows = prices * (1.0 - np.abs(rng.normal(0, 0.001, len(prices))))
     opens = np.concatenate([[prices[0]], prices[:-1]])
-    volume = np.full(len(prices), 1000.0)
+
+    moves = np.abs(np.concatenate([[0.0], np.diff(prices)])) / np.maximum(prices, 1e-9)
+    volume = 1000.0 * (1.0 + 40.0 * moves) * rng.lognormal(0.0, 0.35, len(prices))
+
     return pd.DataFrame(
         {
             "open_time": [start_ms + index * step_ms for index in range(len(prices))],
@@ -101,4 +110,24 @@ def volatile_frame() -> pd.DataFrame:
     spike = rng.normal(0.0, 0.05, spike_steps)
     returns = np.concatenate([calm, spike])
     prices = 1_000.0 * np.exp(np.cumsum(returns))
+    return _frame_from_prices(prices, 1_700_000_000_000, 900_000)
+
+
+@pytest.fixture
+def mixed_frame() -> pd.DataFrame:
+    """A market that goes through every regime, like a real one does.
+
+    Down-trend, then a quiet range, then a strong up-trend, then a volatility
+    spike, then a drift back down. A single-regime fixture would let a broken
+    strategy look "conservative" simply because its setup never appeared.
+    """
+    rng = np.random.default_rng(2024)
+    segments = [
+        rng.normal(-0.0010, 0.0035, 320),  # downtrend
+        rng.normal(0.0000, 0.0012, 320),  # quiet range
+        rng.normal(0.0016, 0.0030, 400),  # strong uptrend
+        rng.normal(0.0000, 0.0180, 90),  # volatility spike
+        rng.normal(-0.0008, 0.0040, 270),  # drift back down
+    ]
+    prices = 30_000.0 * np.exp(np.cumsum(np.concatenate(segments)))
     return _frame_from_prices(prices, 1_700_000_000_000, 900_000)

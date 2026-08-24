@@ -48,11 +48,20 @@ def test_health_report_lists_components(client: TestClient) -> None:
 
 def test_strategies_endpoint(client: TestClient) -> None:
     payload = client.get("/api/strategies").json()
-    assert len(payload) == 3
+    assert len(payload) == 13
     keys = {item["key"] for item in payload}
-    assert keys == {"trend_following", "breakout_donchian", "mean_reversion"}
+    assert {"trend_following", "breakout_donchian", "mean_reversion"} <= keys
+    assert {"golden_cross", "supertrend_follow", "rsi_divergence"} <= keys
     for item in payload:
         assert item["param_schema"]["properties"]
+        assert item["risk_level"] in ("safe", "medium", "risky")
+
+
+def test_strategies_are_returned_safest_first(client: TestClient) -> None:
+    payload = client.get("/api/strategies").json()
+    order = {"safe": 0, "medium": 1, "risky": 2}
+    levels = [order[item["risk_level"]] for item in payload]
+    assert levels == sorted(levels)
 
 
 def test_strategy_can_be_disabled_and_enabled(client: TestClient) -> None:

@@ -16,7 +16,9 @@ import type {
   SettingsResponse,
   SignalRecord,
   StrategySummary,
+  SyncTopSymbolsResponse,
   SystemEvent,
+  TopSymbolResponse,
   TradeView,
   TradingConfig,
 } from "@/types/api";
@@ -139,6 +141,10 @@ export const exchangeService = {
   deleteCredentials: () => api.delete<MessageResponse>("/exchange/credentials"),
   test: () => api.post<Record<string, unknown>>("/exchange/test"),
   refreshFilters: () => api.post<{ updated: number }>("/exchange/refresh-filters"),
+  topSymbols: (limit = 10) =>
+    api.get<TopSymbolResponse>("/exchange/top-symbols", { limit }),
+  syncTopSymbols: (limit = 10) =>
+    api.post<SyncTopSymbolsResponse>("/exchange/symbols/sync-top?limit=" + limit, undefined, 120_000),
 };
 
 export const tradingService = {

@@ -4,8 +4,9 @@ import { Badge, StatusDot } from "@/components/Badge";
 import { Modal } from "@/components/Modal";
 import { EmergencyStopPanel } from "@/components/EmergencyStopPanel";
 import { Toasts } from "@/components/Toasts";
-import { REFRESH_FAST, usePolledQuery } from "@/hooks/useApi";
+import { REFRESH_FAST, useApiMutation, usePolledQuery } from "@/hooks/useApi";
 import { systemService } from "@/services/tradingService";
+import { useAppState } from "@/state/appStateContext";
 import { formatAgo } from "@/utils/format";
 import { useState } from "react";
 
@@ -31,6 +32,24 @@ function modeTone(mode: string) {
 export function Layout() {
   const [stopOpen, setStopOpen] = useState(false);
   const status = usePolledQuery(["system-status"], systemService.status, REFRESH_FAST);
+  const { pushToast } = useAppState();
+
+  const startEngine = useApiMutation(
+    () => systemService.startEngine(),
+    [["system-status"], ["health"], ["overview"]],
+    {
+      onSuccess: (response) => pushToast(response.message, response.ok ? "success" : "error"),
+      onError: (error) => pushToast(error.message, "error"),
+    },
+  );
+  const stopEngine = useApiMutation(
+    () => systemService.stopEngine(),
+    [["system-status"], ["health"], ["overview"]],
+    {
+      onSuccess: (response) => pushToast(response.message, "success"),
+      onError: (error) => pushToast(error.message, "error"),
+    },
+  );
 
   const bot = status.data;
   const engineRunning = Boolean(
@@ -85,6 +104,27 @@ export function Layout() {
               <Badge tone="danger">STOP: {bot.emergency_stop_level}</Badge>
             )}
             {bot?.live_trading_confirmed && <Badge tone="danger">LIVE ORDERS ENABLED</Badge>}
+            {engineRunning ? (
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={stopEngine.isPending}
+                onClick={() => stopEngine.mutate(undefined)}
+                title="Stops the trading engine. Open positions are left untouched."
+              >
+                {stopEngine.isPending ? "Stopping..." : "STOP BOT"}
+              </button>
+            ) : (
+              <button
+                type="button"
+                className="btn btn-success btn-sm"
+                disabled={startEngine.isPending}
+                onClick={() => startEngine.mutate(undefined)}
+                title="Starts the trading engine in the current mode."
+              >
+                {startEngine.isPending ? "Starting..." : "START BOT"}
+              </button>
+            )}
             <button
               type="button"
               className="btn btn-danger btn-sm"

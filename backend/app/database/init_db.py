@@ -33,7 +33,8 @@ def create_tables() -> None:
 def seed_symbols(db: Session) -> None:
     """Insert the markets from the configuration if they do not exist yet."""
     settings = get_settings()
-    for symbol in settings.enabled_symbol_list:
+    enabled = set(settings.enabled_symbol_list)
+    for symbol in settings.available_symbol_list:
         existing = db.execute(select(Symbol).where(Symbol.symbol == symbol)).scalar_one_or_none()
         if existing is not None:
             continue
@@ -45,7 +46,7 @@ def seed_symbols(db: Session) -> None:
                 base_asset=base,
                 quote_asset=quote or settings.quote_currency,
                 market_type=settings.binance_market_type.value,
-                enabled=True,
+                enabled=symbol in enabled,
                 tick_size=filters.tick_size,
                 step_size=filters.step_size,
                 min_quantity=filters.min_quantity,

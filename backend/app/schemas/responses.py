@@ -145,6 +145,7 @@ class StrategyOut(BaseModel):
     key: str
     name: str
     family: str
+    risk_level: str = "medium"
     description: str
     enabled: bool = True
     params: dict[str, Any] = Field(default_factory=dict)

@@ -10,7 +10,7 @@ import { strategyService } from "@/services/tradingService";
 import { useAppState } from "@/state/appStateContext";
 import type { StrategySummary } from "@/types/api";
 import { formatCurrency, formatPercent, formatPrice, formatSignedCurrency, pnlClass } from "@/utils/format";
-import { signalTone } from "@/utils/tone";
+import { RISK_LEVEL_HELP, RISK_LEVEL_LABEL, riskTone, signalTone } from "@/utils/tone";
 
 function StrategyCard({ strategy }: { strategy: StrategySummary }) {
   const { pushToast } = useAppState();
@@ -55,12 +55,19 @@ function StrategyCard({ strategy }: { strategy: StrategySummary }) {
       title={strategy.name}
       subtitle={strategy.description}
       actions={
-        <Toggle
-          checked={strategy.enabled}
-          label={strategy.enabled ? "Enabled" : "Disabled"}
-          disabled={update.isPending}
-          onChange={(value) => update.mutate({ enabled: value })}
-        />
+        <div className="row">
+          <span title={RISK_LEVEL_HELP[strategy.risk_level]}>
+            <Badge tone={riskTone(strategy.risk_level)}>
+              {RISK_LEVEL_LABEL[strategy.risk_level]}
+            </Badge>
+          </span>
+          <Toggle
+            checked={strategy.enabled}
+            label={strategy.enabled ? "Enabled" : "Disabled"}
+            disabled={update.isPending}
+            onChange={(value) => update.mutate({ enabled: value })}
+          />
+        </div>
       }
     >
       <div className="grid grid-4">
@@ -183,6 +190,8 @@ export function StrategiesPage() {
     REFRESH_NORMAL,
   );
 
+  const strategies = data ?? [];
+
   if (isLoading && !data) {
     return <Loading />;
   }
@@ -196,16 +205,39 @@ export function StrategiesPage() {
         <div>
           <h1>Strategies</h1>
           <p>
-            Three independent, publicly documented systematic families. Each one can be turned
-            on or off separately and each one has documented conditions in which it loses
-            money.
+            Thirteen independent, publicly documented systematic families, grouped by how
+            aggressive they are. Each one can be turned on or off separately and each one
+            documents the conditions in which it loses money.
           </p>
+        </div>
+        <div className="row">
+          {(["safe", "medium", "risky"] as const).map((level) => (
+            <span key={level} title={RISK_LEVEL_HELP[level]}>
+              <Badge tone={riskTone(level)}>
+                {RISK_LEVEL_LABEL[level]} {strategies.filter((s) => s.risk_level === level).length}
+              </Badge>
+            </span>
+          ))}
         </div>
       </div>
 
-      {(data ?? []).map((strategy) => (
-        <StrategyCard key={strategy.key} strategy={strategy} />
-      ))}
+      {(["safe", "medium", "risky"] as const).map((level) => {
+        const group = strategies.filter((strategy) => strategy.risk_level === level);
+        if (group.length === 0) {
+          return null;
+        }
+        return (
+          <div key={level} style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+            <div className="row" style={{ marginTop: 6 }}>
+              <Badge tone={riskTone(level)}>{RISK_LEVEL_LABEL[level]}</Badge>
+              <span className="small muted">{RISK_LEVEL_HELP[level]}</span>
+            </div>
+            {group.map((strategy) => (
+              <StrategyCard key={strategy.key} strategy={strategy} />
+            ))}
+          </div>
+        );
+      })}
 
       <div className="disclaimer">
         No strategy in this platform is guaranteed to be profitable. Read

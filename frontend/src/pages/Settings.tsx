@@ -343,6 +343,15 @@ export function SettingsPage() {
     { onSuccess: () => pushToast("Strategy updated", "success") },
   );
 
+  const syncTop = useApiMutation(
+    () => exchangeService.syncTopSymbols(10),
+    [["settings"], ["exchange-status"]],
+    {
+      onSuccess: (response) => pushToast(response.message, "success"),
+      onError: (error) => pushToast(error.message, "error"),
+    },
+  );
+
   if (settings.isLoading && !settings.data) {
     return <Loading />;
   }
@@ -363,7 +372,27 @@ export function SettingsPage() {
 
       <ApiCredentialsPanel />
 
-      <Panel title="Markets and timeframes">
+      <Panel
+        title="Markets and timeframes"
+        subtitle={"Available: " + available.length + " markets. Enabled for trading: " + symbols.length}
+        actions={
+          <button
+            type="button"
+            className="btn btn-sm"
+            disabled={syncTop.isPending}
+            onClick={() => syncTop.mutate(undefined)}
+            title="Reads the 24 hour volume ranking from Binance and adds the top markets."
+          >
+            {syncTop.isPending ? "Loading..." : "Add the 10 highest-volume coins"}
+          </button>
+        }
+      >
+        <Banner tone="info">
+          Adding a market only makes it available. Enabling one for trading is a separate,
+          deliberate tick below, because every enabled market multiplies the work the engine
+          does and the number of positions that can be opened. Tokenised stocks and
+          commodities are excluded on purpose: they do not trade around the clock.
+        </Banner>
         <div className="grid grid-3">
           <div className="field">
             <label>Markets</label>

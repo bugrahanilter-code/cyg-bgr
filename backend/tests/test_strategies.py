@@ -5,20 +5,37 @@ from __future__ import annotations
 import pandas as pd
 import pytest
 
-from app.core.constants import MarketRegime, SignalType, TrendRegime, VolatilityRegime
+from app.core.constants import MarketRegime, RiskLevel, SignalType, TrendRegime, VolatilityRegime
 from app.regime.engine import MarketRegimeEngine, RegimeResult
 from app.strategies.registry import available_keys, create_strategy, strategy_metadata
 
-
-def test_three_strategies_are_registered() -> None:
-    keys = available_keys()
-    assert "trend_following" in keys
-    assert "breakout_donchian" in keys
-    assert "mean_reversion" in keys
-    assert len(strategy_metadata()) == 3
+ALL_KEYS = available_keys()
 
 
-@pytest.mark.parametrize("key", ["trend_following", "breakout_donchian", "mean_reversion"])
+def test_thirteen_strategies_are_registered() -> None:
+    keys = set(ALL_KEYS)
+    assert {"trend_following", "breakout_donchian", "mean_reversion"} <= keys
+    assert {"volatility_breakout", "rsi_divergence", "squeeze_momentum"} <= keys
+    assert {"macd_momentum", "ichimoku_trend", "supertrend_follow"} <= keys
+    assert {"golden_cross", "dual_momentum", "vwap_pullback", "keltner_trend"} <= keys
+    assert len(strategy_metadata()) == 13
+
+
+def test_every_strategy_declares_a_risk_level() -> None:
+    levels = [meta["risk_level"] for meta in strategy_metadata()]
+    assert set(levels) <= {level.value for level in RiskLevel}
+    assert levels.count("safe") == 4
+    assert levels.count("risky") == 4
+    assert levels.count("medium") == 5
+
+
+def test_strategies_are_listed_safest_first() -> None:
+    levels = [meta["risk_level"] for meta in strategy_metadata()]
+    order = {"safe": 0, "medium": 1, "risky": 2}
+    assert levels == sorted(levels, key=lambda level: order[level])
+
+
+@pytest.mark.parametrize("key", ALL_KEYS)
 def test_strategy_returns_a_valid_signal(key: str, trending_frame: pd.DataFrame) -> None:
     strategy = create_strategy(key)
     regime_engine = MarketRegimeEngine()
@@ -30,7 +47,7 @@ def test_strategy_returns_a_valid_signal(key: str, trending_frame: pd.DataFrame)
     assert signal.explanation
 
 
-@pytest.mark.parametrize("key", ["trend_following", "breakout_donchian", "mean_reversion"])
+@pytest.mark.parametrize("key", ALL_KEYS)
 def test_entry_signals_have_a_consistent_stop(key: str, trending_frame: pd.DataFrame) -> None:
     strategy = create_strategy(key)
     prepared = strategy.prepare(trending_frame, "15m")
@@ -104,3 +121,43 @@ def test_extreme_volatility_blocks_entries(volatile_frame: pd.DataFrame) -> None
     signal = strategy.generate(volatile_frame, symbol="BTC/USDT", timeframe="15m", regime=regime)
     if regime.volatility == VolatilityRegime.EXTREME:
         assert signal.signal == SignalType.HOLD
+
+
+def test_golden_cross_actually_produces_entries(mixed_frame: pd.DataFrame) -> None:
+    """Regression test: the crossover bar itself has almost no separation.
+
+    Requiring a minimum gap ON the crossover bar rejected every signal, so the
+    strategy never traded at all. The entry now fires on the bar where the gap
+    first becomes meaningful, which is a confirmed cross.
+    """
+    strategy = create_strategy("golden_cross", {"fast_period": 20, "slow_period": 60})
+    prepared = strategy.prepare(mixed_frame, "15m")
+    entries = [
+        strategy.evaluate(prepared, index, symbol="BTC/USDT", timeframe="15m")
+        for index in range(strategy.warmup_bars, len(prepared))
+    ]
+    assert any(signal.is_entry for signal in entries)
+
+
+def test_every_strategy_can_produce_an_entry_somewhere(
+    mixed_frame: pd.DataFrame,
+    trending_frame: pd.DataFrame,
+    ranging_frame: pd.DataFrame,
+) -> None:
+    """A strategy that can never fire is a bug, not a conservative filter."""
+    never_fired: list[str] = []
+    for key in ALL_KEYS:
+        strategy = create_strategy(key)
+        fired = False
+        for frame in (mixed_frame, trending_frame, ranging_frame):
+            prepared = strategy.prepare(frame, "15m")
+            for index in range(strategy.warmup_bars, len(prepared)):
+                signal = strategy.evaluate(prepared, index, symbol="BTC/USDT", timeframe="15m")
+                if signal.is_entry:
+                    fired = True
+                    break
+            if fired:
+                break
+        if not fired:
+            never_fired.append(key)
+    assert not never_fired, f"These strategies never produced an entry: {never_fired}"
