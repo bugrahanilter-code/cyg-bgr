@@ -12,13 +12,14 @@ from app.strategies.registry import available_keys, create_strategy, strategy_me
 ALL_KEYS = available_keys()
 
 
-def test_thirteen_strategies_are_registered() -> None:
+def test_fourteen_strategies_are_registered() -> None:
     keys = set(ALL_KEYS)
     assert {"trend_following", "breakout_donchian", "mean_reversion"} <= keys
     assert {"volatility_breakout", "rsi_divergence", "squeeze_momentum"} <= keys
     assert {"macd_momentum", "ichimoku_trend", "supertrend_follow"} <= keys
     assert {"golden_cross", "dual_momentum", "vwap_pullback", "keltner_trend"} <= keys
-    assert len(strategy_metadata()) == 13
+    assert {"adaptive_momentum"} <= keys
+    assert len(strategy_metadata()) == 14
 
 
 def test_every_strategy_declares_a_risk_level() -> None:
@@ -26,7 +27,7 @@ def test_every_strategy_declares_a_risk_level() -> None:
     assert set(levels) <= {level.value for level in RiskLevel}
     assert levels.count("safe") == 4
     assert levels.count("risky") == 4
-    assert levels.count("medium") == 5
+    assert levels.count("medium") == 6
 
 
 def test_strategies_are_listed_safest_first() -> None:

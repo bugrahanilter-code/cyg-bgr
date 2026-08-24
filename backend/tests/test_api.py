@@ -48,7 +48,7 @@ def test_health_report_lists_components(client: TestClient) -> None:
 
 def test_strategies_endpoint(client: TestClient) -> None:
     payload = client.get("/api/strategies").json()
-    assert len(payload) == 13
+    assert len(payload) == 14
     keys = {item["key"] for item in payload}
     assert {"trend_following", "breakout_donchian", "mean_reversion"} <= keys
     assert {"golden_cross", "supertrend_follow", "rsi_divergence"} <= keys

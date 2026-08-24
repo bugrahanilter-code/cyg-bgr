@@ -93,9 +93,7 @@ def test_ema_exit_model_closes_on_the_ema(mixed_frame: pd.DataFrame) -> None:
     strategy = create_strategy("adaptive_momentum", {"exit_model": "ema"})
     prepared = strategy.prepare(mixed_frame, "15m")
     closes = [
-        strategy.evaluate(
-            prepared, index, symbol="BTC/USDT", timeframe="15m", position_side="LONG"
-        )
+        strategy.evaluate(prepared, index, symbol="BTC/USDT", timeframe="15m", position_side="LONG")
         for index in range(strategy.warmup_bars, len(prepared))
     ]
     assert any(signal.signal == SignalType.CLOSE for signal in closes)
@@ -107,9 +105,7 @@ def test_low_volatility_is_refused(mixed_frame: pd.DataFrame) -> None:
     5 percent ATR per 15m candle is far above anything in the fixture, so the
     volatility floor must reject every bar.
     """
-    strategy = create_strategy(
-        "adaptive_momentum", {"min_atr_pct": 5.0, "min_signal_score": 40.0}
-    )
+    strategy = create_strategy("adaptive_momentum", {"min_atr_pct": 5.0, "min_signal_score": 40.0})
     prepared = strategy.prepare(mixed_frame, "15m")
     entries = [
         strategy.evaluate(prepared, index, symbol="BTC/USDT", timeframe="15m").is_entry

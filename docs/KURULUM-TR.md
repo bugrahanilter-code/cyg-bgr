@@ -262,18 +262,19 @@ sunar:
 
 ## 13. Stratejiler ve coinler
 
-### 13 strateji, 3 risk seviyesi
+### 14 strateji, 3 risk seviyesi
 
 Panelde her stratejinin yanında risk rozeti görürsünüz:
 
 | Seviye | Kaç tane | Ne demek |
 | --- | --- | --- |
 | **SAFE** | 4 | Az işlem, geniş stop, trendle birlikte, varsayılan olarak sadece alış |
-| **MEDIUM** | 5 | Standart sistematik yaklaşımlar, trend ve güç filtreli |
+| **MEDIUM** | 6 | Standart sistematik yaklaşımlar, trend ve güç filtreli |
 | **RISKY** | 4 | Trende karşı, çok sık işlem veya yön belirsizken giriş |
 
 **Güvenli (SAFE):** Golden Cross, Dual Momentum, VWAP Pullback, Keltner Trend
-**Orta (MEDIUM):** Trend Following, Donchian Breakout, MACD, Ichimoku, SuperTrend
+**Orta (MEDIUM):** Trend Following, Donchian Breakout, MACD, Ichimoku, SuperTrend,
+Adaptive Momentum (15dk gün içi, 1s trend filtreli, 100 puanlık skor sistemi)
 **Riskli (RISKY):** Mean Reversion, RSI Divergence, Volatility Breakout, Squeeze Momentum
 
 "Güvenli" kelimesi **stratejinin yapısını** anlatır, sonucunu değil. Geniş stop

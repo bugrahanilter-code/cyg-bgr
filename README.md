@@ -1,7 +1,7 @@
 # Crypto Algorithmic Trading Platform
 
 A modular, local-first cryptocurrency algorithmic trading platform for the ten
-highest-volume Binance coins, with thirteen strategies, backtesting, paper
+highest-volume Binance coins, with fourteen strategies, backtesting, paper
 trading and (optional, off by default) live trading.
 
 > ## THIS SYSTEM DOES NOT GUARANTEE ANY PROFIT
@@ -50,8 +50,8 @@ A trading platform that runs entirely on your own computer. It has three modes:
 | **Paper** (default) | Real, live Binance data | Simulated with fees and slippage | None |
 | **Live** | Real, live Binance data | **Real orders on Binance** | **Real money** |
 
-It ships with thirteen independent, publicly documented strategies (4 safe,
-5 medium risk, 4 risky - the level is shown in the dashboard), a strict Risk
+It ships with fourteen independent, publicly documented strategies (4 safe,
+6 medium risk, 4 risky - the level is shown in the dashboard), a strict Risk
 Engine that can veto any of them, a reconciliation engine that compares local
 state with the exchange, and a three-level emergency stop.
 
