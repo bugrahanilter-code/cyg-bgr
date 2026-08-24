@@ -161,26 +161,49 @@ def run_on_frames(
     return {"per_symbol": per_symbol, "portfolio": portfolio, "trades": trades_by_symbol}
 
 
-def objective(metrics: dict[str, Any]) -> float:
-    """Rank configurations without letting net profit decide on its own.
+def passes_acceptance_gates(metrics: dict[str, Any]) -> tuple[bool, str]:
+    """Would this configuration be acceptable to trade at all?
 
-    Hard gates first (enough trades, survivable drawdown, profit factor above
-    one), then Sharpe as the ranking value. A configuration that fails a gate
-    scores minus infinity rather than being quietly ranked low.
+    Separate from the ranking score on purpose. When a strategy is bad enough
+    that every candidate fails, a gate that returns minus infinity makes the
+    whole search blind: nothing can be compared with anything. The gates decide
+    acceptability, the score decides ordering, and the report states both.
+    """
+    trades = float(metrics.get("total_trades") or 0)
+    if trades < MIN_TRADES:
+        return False, f"only {trades:.0f} trades"
+    drawdown = float(metrics.get("max_drawdown_pct") or 0.0)
+    if drawdown > MAX_ACCEPTABLE_DRAWDOWN:
+        return False, f"drawdown {drawdown:.1f}% above {MAX_ACCEPTABLE_DRAWDOWN}%"
+    profit_factor = metrics.get("profit_factor")
+    if profit_factor is None or float(profit_factor) <= 1.0:
+        return False, f"profit factor {profit_factor}"
+    sharpe = metrics.get("sharpe_ratio")
+    if sharpe is None or float(sharpe) <= 0:
+        return False, f"sharpe {sharpe}"
+    return True, "acceptable"
+
+
+def objective(metrics: dict[str, Any]) -> float:
+    """Continuous ranking score, always comparable.
+
+    Profit factor carries the ranking because it survives a wiped-out account,
+    where Sharpe and total return both saturate and stop distinguishing between
+    candidates. Sharpe is a smaller tie-breaker and drawdown is a mild penalty.
+    A configuration with too few trades is still rejected outright, because
+    ranking noise against noise is worse than admitting there is no answer.
     """
     trades = float(metrics.get("total_trades") or 0)
     if trades < MIN_TRADES:
         return float("-inf")
-    drawdown = float(metrics.get("max_drawdown_pct") or 0.0)
-    if drawdown > MAX_ACCEPTABLE_DRAWDOWN:
-        return float("-inf")
+
     profit_factor = metrics.get("profit_factor")
-    if profit_factor is None or float(profit_factor) <= 1.0:
-        return float("-inf")
+    profit_factor = float(profit_factor) if profit_factor is not None else 0.0
     sharpe = metrics.get("sharpe_ratio")
-    if sharpe is None:
-        return float("-inf")
-    return float(sharpe)
+    sharpe = float(sharpe) if sharpe is not None else 0.0
+    drawdown = float(metrics.get("max_drawdown_pct") or 0.0)
+
+    return profit_factor + 0.05 * sharpe - 0.002 * drawdown
 
 
 #: Coordinate search: one parameter group at a time, in order of importance.
@@ -234,6 +257,7 @@ def optimise(
             # the per-market Sharpe values weighted by trade count.
             metrics = _portfolio_metrics_with_sharpe(result)
             score = objective(metrics)
+            acceptable, gate_reason = passes_acceptance_gates(metrics)
             axis_rows.append(
                 {
                     "override": override,
@@ -243,17 +267,28 @@ def optimise(
                     "sharpe": _round(metrics.get("sharpe_ratio")),
                     "max_dd_pct": round(metrics.get("max_drawdown_pct") or 0.0, 2),
                     "trades": int(metrics.get("total_trades") or 0),
+                    "acceptable": acceptable,
+                    "gate": gate_reason,
                 }
             )
             if score > best_score:
                 best_score = score
                 best_override = override
 
-        history.append({"axis": axis, "rows": axis_rows, "chosen": best_override})
+        any_acceptable = any(row["acceptable"] for row in axis_rows)
+        history.append(
+            {
+                "axis": axis,
+                "rows": axis_rows,
+                "chosen": best_override,
+                "any_acceptable": any_acceptable,
+            }
+        )
         if best_override is not None and best_score > float("-inf"):
             params.update(best_override)
-        label = round(best_score, 3) if best_score > float("-inf") else "rejected"
-        print(f"  {axis:20s} -> {best_override} (score {label})")
+        label = round(best_score, 3) if best_score > float("-inf") else "no usable candidate"
+        flag = "" if any_acceptable else "   (none passed the acceptance gates)"
+        print(f"  {axis:20s} -> {best_override} (score {label}){flag}")
 
     return params, history
 

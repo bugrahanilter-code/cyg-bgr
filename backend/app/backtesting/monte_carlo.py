@@ -75,14 +75,21 @@ def run_monte_carlo(
         else:
             sample = trades[rng.integers(0, count, count)]
 
-        equity = starting_capital + np.cumsum(sample)
-        equity_path = np.concatenate([[starting_capital], equity])
+        # An account cannot go below zero: once it is wiped out, trading stops.
+        # Without this clamp the percentiles can report losses worse than
+        # minus 100 percent, which is not a possible outcome and makes the
+        # whole distribution look wrong.
+        raw_path = starting_capital + np.cumsum(sample)
+        equity_path = np.concatenate([[starting_capital], raw_path])
+        wiped = np.flatnonzero(equity_path <= 0)
+        if wiped.size:
+            equity_path = equity_path.copy()
+            equity_path[wiped[0] :] = 0.0
+            ruin += 1
+
         final_returns[index] = (equity_path[-1] - starting_capital) / starting_capital * 100.0
         drawdowns[index] = _max_drawdown_pct(equity_path)
         streaks[index] = _longest_losing_streak(sample)
-        if equity_path.min() <= 0:
-            ruin += 1
-
     return {
         "ran": True,
         "method": method,

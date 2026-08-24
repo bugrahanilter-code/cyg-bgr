@@ -140,3 +140,19 @@ def test_buy_and_hold_benchmark() -> None:
     result = buy_and_hold(frame, 10_000.0, "15m")
     assert result["total_return_pct"] == pytest.approx(50.0, abs=0.1)
     assert result["max_drawdown_pct"] == pytest.approx(0.0, abs=0.01)
+
+
+def test_monte_carlo_cannot_lose_more_than_the_account() -> None:
+    """Regression test: percentiles reported losses worse than -100 percent.
+
+    Summing trade PnL without a floor let simulated equity go negative, which
+    is not a possible outcome for a cash account. Once the account is wiped it
+    stays at zero.
+    """
+    ruinous = [-500.0] * 60
+    result = run_monte_carlo(ruinous, starting_capital=10_000.0, simulations=500)
+
+    assert result["return_p5_pct"] >= -100.0
+    assert result["median_return_pct"] >= -100.0
+    assert result["worst_drawdown_pct"] <= 100.0
+    assert result["risk_of_ruin_pct"] == pytest.approx(100.0)
