@@ -13,11 +13,18 @@ export default defineConfig({
     },
   },
   server: {
-    host: "0.0.0.0",
+    // "true" listens on every interface INCLUDING IPv6. "0.0.0.0" is IPv4 only,
+    // and on Windows "localhost" usually resolves to ::1 first, so a browser
+    // would try [::1]:3000, find nothing listening, and show a blank page while
+    // curl still worked by falling back to IPv4.
+    host: true,
     port: 3000,
+    strictPort: true,
     proxy: {
       "/api": {
-        target: process.env.VITE_BACKEND_URL || "http://localhost:8000",
+        // Explicit IPv4: the backend listens on 127.0.0.1 only, and "localhost"
+        // can resolve to ::1 first, which would make the proxy fail.
+        target: process.env.VITE_BACKEND_URL || "http://127.0.0.1:8000",
         changeOrigin: true,
       },
     },

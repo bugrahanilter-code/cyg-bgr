@@ -53,5 +53,10 @@ echo Arka uc baslatiliyor: http://localhost:8000
 echo API dokumantasyonu:   http://localhost:8000/docs
 echo Durdurmak icin Ctrl+C.
 echo.
+REM Yalnizca 127.0.0.1 dinler: bu uygulamada kimlik dogrulama yok ve acil
+REM durdurma dahil her kontrol acik, o yuzden yerel agdan erisilebilir
+REM olmamali. Panel /api isteklerini kendi sunucusundan vekillendirdigi
+REM icin tarayicinin arka uca dogrudan baglanmasi gerekmiyor.
+REM API dokumantasyonu icin http://127.0.0.1:8000/docs kullanin.
 .venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 pause
