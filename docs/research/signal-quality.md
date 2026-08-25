@@ -76,6 +76,29 @@ Three things make this more credible than the earlier findings:
 Four of six improved independently. The two that did not produce almost no
 high-confidence signals, so there is nothing to conclude either way.
 
+## Does it help the account, not just the average trade?
+
+A higher expectancy per trade is not automatically a better account: the filter
+also removes three quarters of the trades, and fewer trades compound less often.
+So the same out-of-sample period was replayed through **one shared account** with
+the platform's own portfolio rules — at most two concurrent positions, 0.5% risk
+each, compounding.
+
+| Min confidence | Return | Max drawdown | Profit factor | Trades taken |
+| ---: | ---: | ---: | ---: | ---: |
+| none | +5.13% | 18.30% | 1.06 | 312 |
+| 0.50 | +4.79% | 12.31% | 1.04 | 410 |
+| **0.75** | **+24.19%** | **9.04%** | **1.25** | 340 |
+| 0.85 | +13.79% | 8.47% | 1.17 | 259 |
+
+0.75 is the best of the four on return *and* halves the drawdown against taking
+everything. It was chosen from the per-trade table before this replay was run, so
+the two measurements agree independently.
+
+0.85 earns less than 0.75 despite a better per-trade expectancy, which is the
+trade-off working exactly as expected: past a point the filter removes more good
+trades than bad ones. The optimum for this sample sits at 0.75.
+
 ## What changed
 
 `min_signal_confidence` default: **0.35 → 0.75**.
