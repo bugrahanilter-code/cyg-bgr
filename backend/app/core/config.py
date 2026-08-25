@@ -48,7 +48,13 @@ class Settings(BaseSettings):
     data_dir: str = str(BACKEND_DIR / "data")
 
     # -- Database -----------------------------------------------------------
-    database_url: str = "postgresql+psycopg2://trader:change_this_password@db:5432/trading"
+    #: SQLite by default so the backend starts on a fresh machine with nothing
+    #: installed but Python. The old default pointed at "db", the PostgreSQL
+    #: service name inside docker compose, which does not resolve anywhere else
+    #: and made a non-Docker install fail at startup with a DNS error.
+    #: docker compose sets DATABASE_URL in the container environment, so the
+    #: Docker path overrides this and is unaffected.
+    database_url: str = "sqlite+pysqlite:///./data/dev.db"
     db_echo: bool = False
     # When true the tables are created directly from the SQLAlchemy metadata.
     # Alembic remains the source of truth in docker; this is a dev convenience.

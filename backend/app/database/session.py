@@ -16,12 +16,33 @@ from app.core.logging import get_logger
 logger = get_logger(__name__)
 
 
+def _ensure_sqlite_directory(url: str) -> None:
+    """Create the folder a SQLite file lives in, if it is missing."""
+    from pathlib import Path as _Path
+
+    if ":memory:" in url:
+        return
+    _, _, path_part = url.partition("///")
+    path_part = path_part.split("?", 1)[0]
+    if not path_part:
+        return
+    target = _Path(path_part)
+    if target.parent and not target.parent.exists():
+        target.parent.mkdir(parents=True, exist_ok=True)
+        logger.info("Created the database directory", extra={"path": str(target.parent)})
+
+
 def _build_engine() -> Engine:
     settings = get_settings()
     url = settings.database_url
     kwargs: dict = {"echo": settings.db_echo, "future": True}
 
     if url.startswith("sqlite"):
+        # SQLite will not create a missing directory: it reports "unable to open
+        # database file", which reads like a permissions problem rather than a
+        # missing folder. On a fresh checkout backend/data does not exist,
+        # because the directory is gitignored along with the database itself.
+        _ensure_sqlite_directory(url)
         kwargs["connect_args"] = {"check_same_thread": False}
         if ":memory:" in url:
             kwargs["poolclass"] = StaticPool
