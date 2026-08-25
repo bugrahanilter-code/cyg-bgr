@@ -147,6 +147,24 @@ You need **Docker Desktop** and nothing else. No Python, no Node.js.
 
 The first build takes several minutes. Later starts take seconds.
 
+### Do not put the project inside OneDrive or on the Desktop
+
+Clone it to a plain local path such as `C:\cyg-bgr`.
+
+Two Windows features break the build from a synced or protected folder, and
+neither says so clearly:
+
+* **OneDrive Files On-Demand** leaves cloud placeholders instead of real files.
+  esbuild reads them and reports `Cannot read directory "../../..": access
+  denied`, then `Could not resolve .../vite.config.ts` — the file is listed but
+  cannot be opened.
+* **Controlled folder access** (Windows Defender ransomware protection) blocks
+  unknown programs from `Desktop` and `Documents`. `node.exe` is usually not on
+  its allow list.
+
+A SQLite database inside OneDrive is a separate hazard: syncing a file that is
+open corrupts it, and the write-ahead log changes constantly.
+
 ### If Docker cannot start
 
 Docker Desktop needs CPU virtualization (Intel VT-x / AMD SVM) to be enabled in
