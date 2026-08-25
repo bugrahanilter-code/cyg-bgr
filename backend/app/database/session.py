@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import os
 from collections.abc import Generator, Iterator
 from contextlib import contextmanager
+from pathlib import Path
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
@@ -18,24 +20,56 @@ logger = get_logger(__name__)
 
 def _ensure_sqlite_directory(url: str) -> None:
     """Create the folder a SQLite file lives in, if it is missing."""
-    from pathlib import Path as _Path
-
     if ":memory:" in url:
         return
     _, _, path_part = url.partition("///")
     path_part = path_part.split("?", 1)[0]
     if not path_part:
         return
-    target = _Path(path_part)
+    target = Path(path_part)
     if target.parent and not target.parent.exists():
         target.parent.mkdir(parents=True, exist_ok=True)
         logger.info("Created the database directory", extra={"path": str(target.parent)})
+
+
+def _check_docker_only_host(url: str) -> None:
+    """Fail early and readably when the URL points at the compose hostname.
+
+    "db" is the PostgreSQL service name inside docker compose and resolves
+    nowhere else. Left in a .env it produces a hundred lines of psycopg2 and
+    SQLAlchemy traceback ending in "could not translate host name", which says
+    nothing about what to change. A stale .env survives a git pull, because the
+    file is not in version control, so this keeps happening after the defaults
+    are fixed.
+    """
+    if "@db:" not in url and "@db/" not in url:
+        return
+    if Path("/.dockerenv").exists() or os.environ.get("RUNNING_IN_DOCKER"):
+        return
+
+    raise RuntimeError(
+        "\n"
+        "DATABASE_URL bir Docker adresine bakiyor: '@db:'\n"
+        "'db' yalnizca docker compose agi icinde cozulur; bilgisayarinizda\n"
+        "boyle bir adres yoktur.\n"
+        "\n"
+        "COZUM: .env dosyanizdaki DATABASE_URL satirini sununla degistirin\n"
+        "    DATABASE_URL=sqlite+pysqlite:///./data/dev.db\n"
+        "\n"
+        "Kendi PostgreSQL sunucunuza baglanacaksaniz 'db' yerine 'localhost'\n"
+        "yazin.\n"
+        "\n"
+        "NOT: .env surum kontrolunde degildir, bu yuzden 'git pull' bu satiri\n"
+        "guncellemez. Elle degistirmeniz gerekir.\n"
+    )
 
 
 def _build_engine() -> Engine:
     settings = get_settings()
     url = settings.database_url
     kwargs: dict = {"echo": settings.db_echo, "future": True}
+
+    _check_docker_only_host(url)
 
     if url.startswith("sqlite"):
         # SQLite will not create a missing directory: it reports "unable to open
