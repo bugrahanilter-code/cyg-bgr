@@ -4,6 +4,7 @@ import { BarSeries } from "@/charts/BarSeries";
 import { LineAreaChart } from "@/charts/LineAreaChart";
 import { Badge } from "@/components/Badge";
 import { Panel } from "@/components/Panel";
+import { SignalQualityPanel } from "@/components/SignalQualityPanel";
 import { ParamsForm } from "@/components/ParamsForm";
 import { StatCard } from "@/components/StatCard";
 import { Banner, ErrorState, Loading } from "@/components/StateViews";
@@ -630,6 +631,10 @@ export function BacktestLabPage() {
                 suffix="%"
               />
             </Panel>
+            {result.trade_distribution.signal_quality && (
+              <SignalQualityPanel report={result.trade_distribution.signal_quality} />
+            )}
+
             <Panel title="Trade distribution">
               <BarSeries
                 points={(result.trade_distribution.histogram ?? []).map((bucket) => ({

@@ -173,8 +173,8 @@ const STREAKS: FieldSpec[] = [
 const QUALITY: FieldSpec[] = [
   {
     key: "min_signal_confidence",
-    label: "Minimum signal confidence",
-    hint: "Signals below this score are ignored (0 to 1).",
+    label: "Minimum sinyal güveni",
+    hint: "Bu puanın altındaki sinyaller alınmaz (0-1). Ölçüm: 0,75 eşiğinde örneklem dışı beklenti -0,020R'den +0,088R'ye çıktı ve portföy getirisi %5'ten %24'e, düşüş %18'den %9'a gitti. Ayrıntı: docs/research/signal-quality.md",
     step: 0.05,
     min: 0,
     max: 1,
@@ -340,6 +340,19 @@ export function RiskSettingsPage() {
       <Panel title="Günlük limitler">{renderFields(DAILY)}</Panel>
       <Panel title="Zarar serisi ve düşüş">{renderFields(STREAKS)}</Panel>
       <Panel title="Piyasa kalite filtreleri">
+        {config.min_signal_confidence < 0.7 && (
+          <Banner tone="warning">
+            <strong>
+              Sinyal güveni eşiğiniz {config.min_signal_confidence.toFixed(2)} — ölçülen
+              en iyi değer 0,75.
+            </strong>{" "}
+            8.980 işlem üzerinde, eşik veriye bakılmadan seçilip örneklem dışında
+            ölçüldüğünde: filtresiz beklenti −0,020R, 0,75 eşiğinde +0,088R. Tek hesap
+            üzerinde portföy getirisi %5,13 → %24,19, maksimum düşüş %18,3 → %9,0.
+            Bu bir kâr garantisi değil; sinyallerin dörtte üçünü elemek pahasına elde
+            edilen bir beklenti iyileşmesi.
+          </Banner>
+        )}
         {renderFields(QUALITY)}
         <div className="grid grid-3" style={{ marginTop: 10 }}>
           <div className="field">

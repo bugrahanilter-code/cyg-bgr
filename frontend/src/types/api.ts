@@ -373,6 +373,8 @@ export interface BacktestDetail {
     histogram?: Array<{ from: number; to: number; count: number }>;
     by_symbol?: Array<{ label: string; count: number; net_pnl: number; win_rate_pct: number }>;
     by_exit_reason?: Array<{ label: string; count: number; net_pnl: number; win_rate_pct: number }>;
+    /** Conditional expectancy per entry condition, attached to every backtest. */
+    signal_quality?: SignalQualityReport;
   };
   walk_forward: WalkForwardResult | null;
   trades: TradeView[];
@@ -801,4 +803,23 @@ export interface SelectionResult {
   selection_bias_note: string;
   next_step: string;
   validation_plan?: Record<string, unknown>;
+}
+
+/** One slice of a backtest's trades, and how that slice performed. */
+export interface SignalQualityBucket {
+  feature: string;
+  label: string;
+  trades: number;
+  expectancy_r: number;
+  win_rate_pct: number;
+  total_r: number;
+  edge_vs_all: number;
+}
+
+export interface SignalQualityReport {
+  total_trades: number;
+  baseline_expectancy_r: number;
+  best: SignalQualityBucket[];
+  worst: SignalQualityBucket[];
+  notes: string[];
 }
